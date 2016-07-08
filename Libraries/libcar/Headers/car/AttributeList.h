@@ -72,6 +72,15 @@ public:
 
 public:
     /*
+     * Write an attribute list into an a vector of bytes using the identifier
+     * order provided.
+     */
+    std::vector<uint8_t> write(
+        size_t count,
+        uint32_t const *identifiers) const;
+
+public:
+    /*
      * Print debugging information about the list.
      */
     void dump() const;
@@ -82,23 +91,15 @@ public:
      */
     static AttributeList Load(
         size_t count,
-        uint32_t *identifiers,
-        uint16_t *values);
+        uint32_t const *identifiers,
+        uint16_t const *values);
 
     /*
      * Load an attribute list from a buffer of identifier value pairs.
      */
     static AttributeList Load(
         size_t count,
-        struct car_attribute_pair *pairs);
-
-    /*
-     * Write an attribute list into an a vector of bytes using the identifier
-     * order provided.
-     */
-    std::vector<uint8_t> write(
-        size_t count,
-        uint32_t *identifiers) const;
+        struct car_attribute_pair const *pairs);
 };
 
 }

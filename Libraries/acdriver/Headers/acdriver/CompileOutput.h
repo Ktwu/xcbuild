@@ -109,7 +109,11 @@ public:
     /*
      * Write the output to the filesystem.
      */
-    bool write(libutil::Filesystem *filesystem, Options const &options, Result *result) const;
+    bool write(
+        libutil::Filesystem *filesystem,
+        ext::optional<std::string> const &partialInfoPlist,
+        ext::optional<std::string> const &dependencyInfo,
+        Result *result) const;
 };
 
 }

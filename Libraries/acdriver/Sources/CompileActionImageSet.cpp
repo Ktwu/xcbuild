@@ -27,6 +27,7 @@
 #include <string>
 
 #include <png.h>
+#include <string.h>
 
 using acdriver::CompileAction;
 using acdriver::CompileOutput;
@@ -35,9 +36,18 @@ using acdriver::Result;
 
 using libutil::FSUtil;
 
-static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels, size_t *width_out, size_t *height_out, size_t *channels_out, Result *result)
+static void png_user_read_data(png_structp png_ptr, png_bytep data, png_size_t length)
 {
-    char header[8];
+    unsigned char **contents_ptr = (unsigned char**)png_get_io_ptr(png_ptr);
+    if(!contents_ptr) {
+        return;
+    }
+    memcpy(data, *contents_ptr, length);
+    *contents_ptr += length;
+}
+
+static bool readPNGFile(std::vector<unsigned char> &contents, std::string filename, std::vector<unsigned char> &pixels, size_t *width_out, size_t *height_out, size_t *channels_out, Result *result)
+{
     png_struct *png_struct_ptr;
     png_info *info_struct_ptr;
 
@@ -45,18 +55,7 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
     png_uint_32 row_bytes;
     png_byte **row_pointers = NULL;
 
-    FILE *fp = fopen(filename, "rb");
-    if (!fp) {
-        result->normal(
-            Result::Severity::Error,
-            "unable to open PNG file",
-            std::string(filename));
-        return false;
-    }
-
-    fread(header, 1, 8, fp);
-    if (png_sig_cmp((png_const_bytep)header, 0, 8)) {
-        fclose(fp);
+    if (png_sig_cmp(static_cast<png_const_bytep>(contents.data()), 0, 8)) {
         result->normal(
             Result::Severity::Error,
             "file is not a PNG file",
@@ -67,7 +66,6 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
     png_struct_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
 
     if (!png_struct_ptr) {
-        fclose(fp);
         result->normal(
             Result::Severity::Error,
             "png_create_read_struct returned error",
@@ -78,7 +76,6 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
     info_struct_ptr = png_create_info_struct(png_struct_ptr);
     if (!info_struct_ptr) {
         png_destroy_read_struct (&png_struct_ptr, NULL, NULL);
-        fclose(fp);
         result->normal(
             Result::Severity::Error,
             "png_create_info_struct returned error",
@@ -88,7 +85,6 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
 
     if (setjmp(png_jmpbuf(png_struct_ptr))) {
         png_destroy_read_struct (&png_struct_ptr, &info_struct_ptr, NULL);
-        fclose(fp);
         result->normal(
             Result::Severity::Error,
             "setjmp/png_jmpbuf returned error",
@@ -96,8 +92,9 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
         return false;
     }
 
-    png_init_io(png_struct_ptr, fp);
-    png_set_sig_bytes(png_struct_ptr, 8);
+    unsigned char *contents_ptr = static_cast<unsigned char*>(contents.data());
+    png_set_read_fn(png_struct_ptr, &contents_ptr, png_user_read_data);
+
     png_read_info(png_struct_ptr, info_struct_ptr);
 
     png_uint_32 width, height;
@@ -105,7 +102,6 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
     if (!png_get_IHDR (png_struct_ptr, info_struct_ptr,
         &width, &height, &bit_depth, &color_type, &interlace_method, &compression_method, &filter_method)) {
         png_destroy_read_struct (&png_struct_ptr, &info_struct_ptr, NULL);
-        fclose(fp);
         result->normal(
             Result::Severity::Error,
             "setjmp/png_jmpbuf returned error",
@@ -117,7 +113,7 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
     if (color_type == PNG_COLOR_TYPE_PALETTE) {
         png_set_palette_to_rgb(png_struct_ptr);
         png_set_bgr(png_struct_ptr);
-        png_set_filler(png_struct_ptr, 0xff, PNG_FILLER_AFTER);        
+        png_set_filler(png_struct_ptr, 0xff, PNG_FILLER_AFTER);
     }
 
     if (color_type == PNG_COLOR_TYPE_GRAY &&
@@ -139,7 +135,7 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
     }
 
     if (color_type == PNG_COLOR_TYPE_RGB || color_type == PNG_COLOR_TYPE_GRAY) {
-        png_set_filler(png_struct_ptr, 0xff, PNG_FILLER_AFTER);        
+        png_set_filler(png_struct_ptr, 0xff, PNG_FILLER_AFTER);
     }
 
     png_set_alpha_mode(png_struct_ptr, PNG_ALPHA_PREMULTIPLIED, PNG_DEFAULT_sRGB);
@@ -175,7 +171,6 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
             break;
         default:
             png_destroy_read_struct (&png_struct_ptr, &info_struct_ptr, NULL);
-            fclose(fp);
             result->normal(
                 Result::Severity::Error,
                 "Unhandled PNG color type");
@@ -212,7 +207,6 @@ static bool readPNGFile(const char *filename, std::vector<unsigned char> &pixels
     png_read_end (png_struct_ptr, info_struct_ptr);
     png_destroy_read_struct (&png_struct_ptr, &info_struct_ptr, (png_infopp) NULL);
     free(row_pointers);
-    fclose(fp);
 
     if (width_out) {
         *width_out = width;
@@ -233,67 +227,67 @@ GenerateIdentifier(void) {
     return last;
 }
 
+static uint16_t
+assetIdiomToRenditionIdiom(xcassets::Slot::Idiom assetIdiom)
+{
+    uint16_t renditionIdiom = car_attribute_identifier_idiom_value_universal;
+    switch(assetIdiom) {
+        case xcassets::Slot::Idiom::Universal:
+            renditionIdiom = car_attribute_identifier_idiom_value_universal;
+            break;
+        case xcassets::Slot::Idiom::Phone:
+            renditionIdiom = car_attribute_identifier_idiom_value_phone;
+            break;
+        case xcassets::Slot::Idiom::Pad:
+            renditionIdiom = car_attribute_identifier_idiom_value_pad;
+            break;
+        case xcassets::Slot::Idiom::Desktop:
+            // TODO: desktop has no idiom value
+            break;
+        case xcassets::Slot::Idiom::TV:
+            renditionIdiom = car_attribute_identifier_idiom_value_tv;
+            break;
+        case xcassets::Slot::Idiom::Watch:
+            renditionIdiom = car_attribute_identifier_idiom_value_watch;
+            break;
+        case xcassets::Slot::Idiom::Car:
+            renditionIdiom = car_attribute_identifier_idiom_value_car;
+            break;
+    }
+    return renditionIdiom;
+}
+
 bool
 CompileAsset(
-    std::shared_ptr<xcassets::Asset::Catalog> const &catalog,
-    std::string ns,
+    xcassets::Asset::ImageSet::Image const &image,
+    std::shared_ptr<xcassets::Asset::Asset> const &parent,
+    libutil::Filesystem *filesystem,
     Options const &options,
     CompileOutput *compileOutput,
-    Result *result,
-    std::shared_ptr<xcassets::Asset::Asset> const &parent,
-    xcassets::Asset::ImageSet::Image const &image)
+    Result *result
+    )
 {
     static std::map<std::string, uint16_t> idMap = {};
-    std::string name = FSUtil::GetBaseNameWithoutExtension(parent->path());
 
-    /* Skip any entry that is not attached to a file */
-    if (!image.fileName()) {
+    /* Skip any entry that is not attached to a file, or is explicitly unassigned */
+    if (!image.fileName() || image.unassigned()) {
         return true;
     }
 
-    std::string filename = parent->path() + std::string("/") + *image.fileName();
+    std::string filename = FSUtil::ResolveRelativePath(*image.fileName(), parent->path());
 
     /* An image without an idiom is considered unassigned */
     if (!image.idiom()) {
         return false;
     }
 
-    /* Add namespace to name */
-    if (ns.size() > 0) {
-        name = ns + std::string("/") + name;        
-    }
+    std::string name = parent->name().string();
 
     /* scale defaults to 0 / all */
-    double scale = 0;
-    if (image.scale()) {
-        scale = image.scale()->value();
-    }
+    double scale = image.scale()->value();
 
     // TODO: We should filter by target-device / device-model / os-version
-    uint16_t idiom = car_attribute_identifier_idiom_value_universal;
-    switch(*image.idiom()) {
-        case xcassets::Slot::Idiom::Universal:
-            idiom = car_attribute_identifier_idiom_value_universal;
-            break;
-        case xcassets::Slot::Idiom::Phone:
-            idiom = car_attribute_identifier_idiom_value_phone;
-            break;
-        case xcassets::Slot::Idiom::Pad:
-            idiom = car_attribute_identifier_idiom_value_pad;
-            break;
-        case xcassets::Slot::Idiom::Desktop:
-            // TODO: desktop has no idiom value
-            break;
-        case xcassets::Slot::Idiom::TV:
-            idiom = car_attribute_identifier_idiom_value_tv;
-            break;
-        case xcassets::Slot::Idiom::Watch:
-            idiom = car_attribute_identifier_idiom_value_watch;
-            break;
-        case xcassets::Slot::Idiom::Car:
-            idiom = car_attribute_identifier_idiom_value_car;
-            break;
-    }
+    uint16_t idiom = assetIdiomToRenditionIdiom(*image.idiom());
 
     std::vector<unsigned char> pixels;
     size_t width = 0;
@@ -301,21 +295,26 @@ CompileAsset(
     size_t channels = 0;
     car::Rendition::Data::Format format;
 
-    std::string filenameLowerCase(filename.size(), '\0');
-    std::transform(filename.begin(), filename.end(), filenameLowerCase.begin(), ::tolower);
-
-    if (FSUtil::GetFileExtension(filenameLowerCase) == "png") {
-        if(!readPNGFile(filename.c_str(), pixels, &width, &height, &channels, result)) {
+    if (FSUtil::IsFileExtension(filename, "png", true)) {
+        std::vector<uint8_t> contents;
+        if (!filesystem || !filesystem->read(&contents, filename)) {
+            result->normal(
+                Result::Severity::Error,
+                "unable to open PNG file",
+                std::string(filename));
+            return false;
+        }
+        if(!readPNGFile(contents, filename, pixels, &width, &height, &channels, result)) {
             return false;
         }
         format = channels == 4 ?
         car::Rendition::Data::Format::PremultipliedBGRA8 :
         car::Rendition::Data::Format::PremultipliedGA8;
-    } else if (FSUtil::GetFileExtension(filenameLowerCase) == "jpg" ||
-        FSUtil::GetFileExtension(filenameLowerCase) == "jpeg") {
+    } else if (FSUtil::IsFileExtension(filename, "jpg", true) ||
+        FSUtil::IsFileExtension(filename, "jpeg", true)) {
         std::ifstream inputFile(filename.c_str(), std::ios::binary);
         if (inputFile.is_open()) {
-            inputFile.seekg(0, std::ios::end);   
+            inputFile.seekg(0, std::ios::end);
             pixels.reserve(inputFile.tellg());
             inputFile.seekg(0, std::ios::beg);
             pixels.assign((std::istreambuf_iterator<char>(inputFile)),
@@ -335,7 +334,7 @@ CompileAsset(
             std::string(filename));
         return false;
     }
-    
+
     bool createFacet = false;
     uint16_t facetIdentifier = 0;
     auto it = idMap.find(name);
@@ -451,7 +450,7 @@ CompileAsset(
                     // second column
                     for (auto i : {1,4,7}) {
                         slices[i].x = leftCapInset;
-                        slices[i].width = centerWidth; 
+                        slices[i].width = centerWidth;
                     }
                     // third column
                     for (auto i : {2,5,8}) {

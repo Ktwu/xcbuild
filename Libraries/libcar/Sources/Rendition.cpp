@@ -92,30 +92,30 @@ dump() const
 
     printf("Resizable: %d\n", _isResizable);
     if (_isResizable) {
-        int i = 0;
-        for (auto const &slice : _slices) {
-            printf("slice %d (%u, %u) %u x %u \n", i++, slice.x, slice.y, slice.width, slice.height);
+        for (size_t i = 0; i < _slices.size(); i++) {
+            Slice const &slice = _slices[i];
+            printf("Slice %zd: (%u, %u) %u x %u\n", i, slice.x, slice.y, slice.width, slice.height);
         }
     }
 
-    switch(_resizeMode) {
+    switch (_resizeMode) {
         case ResizeMode::FixedSize:
-            printf("Resize mode: ResizeMode::fixedSize\n");
+            printf("Resize mode: Fixed Size\n");
             break;
         case ResizeMode::Tile:
-            printf("Resize mode: ResizeMode::tile\n");
+            printf("Resize mode: Tile\n");
             break;
         case ResizeMode::Scale:
-            printf("Resize mode: ResizeMode::scale\n");
+            printf("Resize mode: Scale\n");
             break;
         case ResizeMode::Uniform:
-            printf("Resize mode: ResizeMode::uniform\n");
+            printf("Resize mode: Uniform\n");
             break;
         case ResizeMode::HorizontalUniformVerticalScale:
-            printf("Resize mode: ResizeMode::horizontal_uniform_vertical_scale\n");
+            printf("Resize mode: Horizontal Uniform; Vertical Scale\n");
             break;
         case ResizeMode::HorizontalScaleVerticalUniform:
-            printf("Resize mode: ResizeMode::horizontal_scale_vertical_uniform\n");
+            printf("Resize mode: Horizontal Scale; Vertical Uniform\n");
             break;
     }
 
@@ -179,18 +179,16 @@ Load(
             case car_rendition_info_magic_slices: {
                 std::vector<Slice> slices;
                 struct car_rendition_info_slices *info_slices = (struct car_rendition_info_slices *)info_header;
-                for(unsigned int i = 0; i < info_slices->nslices; i++) {
-                        Slice slice = {
-                            info_slices->slices[i].x,
-                            info_slices->slices[i].y,
-                            info_slices->slices[i].width,
-                            info_slices->slices[i].height,
-                        };
-                        slices.push_back(slice);
+                for (size_t i = 0; i < info_slices->nslices; i++) {
+                    Slice slice = {
+                        info_slices->slices[i].x,
+                        info_slices->slices[i].y,
+                        info_slices->slices[i].width,
+                        info_slices->slices[i].height,
+                    };
+                    slices.push_back(slice);
                 }
-                if (slices.size() > 0) {
-                    rendition.slices() = std::move(slices);                    
-                }
+                rendition.slices() = slices;
                 break;
             }
             case car_rendition_info_magic_metrics: {
@@ -213,7 +211,7 @@ Load(
             }
             case car_rendition_info_magic_uti: {
                 struct car_rendition_info_uti *uti = (struct car_rendition_info_uti *)info_header;
-                rendition.uti() = std::string(uti->uti, uti->uti_length);
+                rendition.UTI() = std::string(uti->uti, uti->uti_length);
                 break;
             }
             case car_rendition_info_magic_bitmap_info: {
@@ -249,6 +247,10 @@ Load(
     enum car_rendition_value_layout layout = (enum car_rendition_value_layout)value->metadata.layout;
     rendition.layout() = layout;
     rendition.resizeMode() = ResizeModeFromLayout(layout);
+
+    if (rendition.slices().size() == 0) {
+        rendition.slices().push_back({0, 0, value->width, value->height});
+    }
 
     if (layout >= car_rendition_value_layout_three_part_horizontal_tile &&
         layout <= car_rendition_value_layout_nine_part_horizontal_scale_vertical_uniform &&
@@ -294,19 +296,16 @@ Decode(struct car_rendition_value *value)
         return ext::nullopt;
     }
 
-    /* JPEG format embeds the file with another header */
-    if (format == Rendition::Data::Format::JPEG ||
-        format == Rendition::Data::Format::Data) {
+    /* JPEG format embeds the file within another header. */
+    if (format == Rendition::Data::Format::JPEG || format == Rendition::Data::Format::Data) {
         struct car_rendition_data_header_raw *header_raw = (struct car_rendition_data_header_raw *)((uintptr_t)value + sizeof(struct car_rendition_value) + value->info_len);
-
         if (strncmp(header_raw->magic, "DWAR", sizeof(header_raw->magic)) != 0) {
-            fprintf(stderr, "error: header_raw magic is wrong, can't possibly decode\n");
+            fprintf(stderr, "error: raw data header magic is wrong, can't possibly decode\n");
             return ext::nullopt;
         }
 
-        Rendition::Data data = Rendition::Data(std::vector<uint8_t>(header_raw->length), format);
-        void *raw_data = static_cast<void *>(data.data().data());
-        memcpy(raw_data, header_raw->data, header_raw->length);
+        std::vector<uint8_t> contents = std::vector<uint8_t>(header_raw->data, header_raw->data + header_raw->length);
+        Rendition::Data data = Rendition::Data(contents, format);
         return data;
     }
 
@@ -426,20 +425,16 @@ Encode(Rendition const *rendition, ext::optional<Rendition::Data> data)
         return ext::nullopt;
     }
 
+    /*
+     * If the format is already as required, nothing to do.
+     */
+    if (data->format() == Rendition::Data::Format::JPEG || data->format() == Rendition::Data::Format::Data) {
+        return data->data();
+    }
+
     // The selected algorithm, only zlib for now
     enum car_rendition_data_compression_magic compression_magic = car_rendition_data_compression_magic_zlib;
-    int bytes_per_pixel = 0;
-    switch(data->format()) {
-        case Rendition::Data::Format::PremultipliedBGRA8:
-            bytes_per_pixel = 4;
-            break;
-        case Rendition::Data::Format::PremultipliedGA8:
-            bytes_per_pixel = 2;
-            break;
-        case Rendition::Data::Format::JPEG:
-        case Rendition::Data::Format::Data:
-            return ext::optional<std::vector<uint8_t>>(data->data());
-    }
+    size_t bytes_per_pixel = Rendition::Data::FormatSize(data->format());
 
     size_t uncompressed_length = rendition->width() * rendition->height() * bytes_per_pixel;
     void *uncompressed_data = static_cast<void *>(data->data().data());
@@ -526,22 +521,30 @@ write() const
     header.metadata.layout = _layout;
     strncpy(header.metadata.name, _fileName.c_str(), 128);
 
-    // Create info segments
-    size_t nslices = _slices.size() > 0 ? _slices.size() : 1;
+    /*
+     * Serialize slices. There's always at least one slice.
+     */
+    size_t nslices = (_slices.empty() ? 1 : _slices.size());
     size_t info_slices_size = sizeof(car_rendition_info_slices) + sizeof(struct car_rendition_info_slice) * nslices;
     struct car_rendition_info_slices *info_slices = (struct car_rendition_info_slices *)malloc(info_slices_size);
     info_slices->header.magic = car_rendition_info_magic_slices;
     info_slices->header.length = info_slices_size - sizeof(car_rendition_info_header);
-    if (_slices.size() > 0) {
-        info_slices->nslices = _slices.size();
-        for (size_t i = 0; i < _slices.size(); i++) {
+    info_slices->nslices = nslices;
+
+    if (!_slices.empty()) {
+        /*
+         * Copy in the specified slices.
+         */
+        for (size_t i = 0; i < nslices; i++) {
             info_slices->slices[i].x = _slices[i].x;
             info_slices->slices[i].y = _slices[i].y;
             info_slices->slices[i].width = _slices[i].width;
             info_slices->slices[i].height = _slices[i].height;
         }
     } else {
-        info_slices->nslices = 1;
+        /*
+         * No slices defined; create a single slice for the whole image.
+         */
         info_slices->slices[0].x = 0;
         info_slices->slices[0].y = 0;
         info_slices->slices[0].width = _width;
@@ -570,9 +573,9 @@ write() const
     info_bitmap_info.header.length = sizeof(struct car_rendition_info_bitmap_info) - sizeof(struct car_rendition_info_header);
     info_bitmap_info.exif_orientation = 1; // XXX FIXME
 
-    int bytes_per_pixel = 0;
+    size_t bytes_per_pixel = 0;
     auto renditionData = this->data();
-    switch(renditionData->format()) {
+    switch (renditionData->format()) {
         case Rendition::Data::Format::PremultipliedBGRA8:
             bytes_per_pixel = 4;
             header.pixel_format = car_rendition_value_pixel_format_argb;
@@ -583,7 +586,7 @@ write() const
             break;
         case Rendition::Data::Format::JPEG:
             header.pixel_format = car_rendition_value_pixel_format_jpeg;
-            break;       
+            break;
         case Rendition::Data::Format::Data:
             header.pixel_format = car_rendition_value_pixel_format_raw_data;
             break;

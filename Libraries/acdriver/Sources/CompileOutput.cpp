@@ -28,7 +28,7 @@ CompileOutput(std::string const &root, Format format) :
 }
 
 bool CompileOutput::
-write(Filesystem *filesystem, Options const &options, Result *result) const
+write(Filesystem *filesystem, ext::optional<std::string> const &partialInfoPlist, ext::optional<std::string> const &dependencyInfo, Result *result) const
 {
     bool success = true;
 
@@ -36,7 +36,7 @@ write(Filesystem *filesystem, Options const &options, Result *result) const
      * Write out compiled archive.
      */
     if (_car) {
-        // TODO: only if the car has contents
+        // TODO: only write if non-empty. but did mmap already create the file?
         _car->write();
     }
 
@@ -44,21 +44,32 @@ write(Filesystem *filesystem, Options const &options, Result *result) const
      * Copy files into output.
      */
     for (std::pair<std::string, std::string> const &copy : _copies) {
-        // TODO: copy files
-        (void)copy;
+        std::vector<uint8_t> contents;
+
+        if (!filesystem->read(&contents, copy.first)) {
+            result->normal(Result::Severity::Error, "unable to read input: " + copy.first);
+            success = false;
+            continue;
+        }
+
+        if (!filesystem->write(contents, copy.second)) {
+            result->normal(Result::Severity::Error, "unable to write output: " + copy.second);
+            success = false;
+            continue;
+        }
     }
 
     /*
      * Write out partial info plist, if requested.
      */
-    if (!options.outputPartialInfoPlist().empty()) {
+    if (partialInfoPlist) {
         auto format = plist::Format::XML::Create(plist::Format::Encoding::UTF8);
         auto serialize = plist::Format::XML::Serialize(_additionalInfo.get(), format);
         if (serialize.first == nullptr) {
             result->normal(Result::Severity::Error, "unable to serialize partial info plist");
             success = false;
         } else {
-            if (!filesystem->write(*serialize.first, options.outputPartialInfoPlist())) {
+            if (!filesystem->write(*serialize.first, *partialInfoPlist)) {
                 result->normal(Result::Severity::Error, "unable to write partial info plist");
                 success = false;
             }
@@ -68,8 +79,8 @@ write(Filesystem *filesystem, Options const &options, Result *result) const
     /*
      * Write out dependency info, if requested.
      */
-    if (!options.exportDependencyInfo().empty()) {
-        if (!filesystem->write(_dependencyInfo.serialize(), options.exportDependencyInfo())) {
+    if (dependencyInfo) {
+        if (!filesystem->write(_dependencyInfo.serialize(), *dependencyInfo)) {
             result->normal(Result::Severity::Error, "unable to write dependency info");
             success = false;
         }
