@@ -23,15 +23,9 @@ find_package(PNG REQUIRED)
 
 target_link_libraries(acdriver PUBLIC xcassets util plist dependency ext bom car ${PNG_LIBRARIES})
 target_include_directories(acdriver PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Headers")
-<<<<<<< HEAD
-target_include_directories(acdriver PRIVATE "${PNG_INCLUDE_DIRS}")
-
-||||||| merged common ancestors
-=======
 target_include_directories(acdriver PRIVATE ${PNG_INCLUDE_DIRS})
 set_target_properties(acdriver PROPERTIES COMPILE_DEFINITIONS "${PNG_DEFINITIONS}")
 
->>>>>>> upstream/master
 install(TARGETS acdriver DESTINATION usr/lib)
 
 add_executable(actool Tools/actool.cpp)
