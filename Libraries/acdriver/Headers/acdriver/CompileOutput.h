@@ -7,6 +7,9 @@
  of patent rights can be found in the PATENTS file in the same directory.
  */
 
+#ifndef __acdriver_CompileOutput_h
+#define __acdriver_CompileOutput_h
+
 #include <plist/Dictionary.h>
 #include <dependency/BinaryDependencyInfo.h>
 #include <car/Writer.h>
@@ -17,10 +20,8 @@
 #include <vector>
 #include <ext/optional>
 
-#ifndef __acdriver_CompileOutput_h
-#define __acdriver_CompileOutput_h
-
 namespace libutil { class Filesystem; }
+namespace xcassets { namespace Asset { class Asset; } }
 
 namespace acdriver {
 
@@ -114,6 +115,12 @@ public:
         ext::optional<std::string> const &partialInfoPlist,
         ext::optional<std::string> const &dependencyInfo,
         Result *result) const;
+
+public:
+    /*
+     * The identifier of an asset for use in results.
+     */
+    static std::string AssetReference(std::shared_ptr<xcassets::Asset::Asset> const &asset);
 };
 
 }
