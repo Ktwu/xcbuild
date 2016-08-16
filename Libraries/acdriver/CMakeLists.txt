@@ -13,9 +13,11 @@ add_library(acdriver SHARED
             Sources/Output.cpp
             Sources/Result.cpp
             Sources/VersionAction.cpp
+            Sources/Version.cpp
             Sources/CompileAction.cpp
             Sources/Compile/Convert.cpp
             Sources/Compile/Output.cpp
+            Sources/Compile/Asset.cpp
             Sources/Compile/AppIconSet.cpp
             Sources/Compile/BrandAssets.cpp
             Sources/Compile/ComplicationSet.cpp
@@ -44,5 +46,6 @@ if (BUILD_TESTING)
   ADD_UNIT_GTEST(acdriver Options Tests/test_Options.cpp)
   ADD_UNIT_GTEST(acdriver Output Tests/test_Output.cpp)
   ADD_UNIT_GTEST(acdriver Result Tests/test_Result.cpp)
-  ADD_UNIT_GTEST(acdriver CompileOutput Tests/test_CompileOutput.cpp)
+  ADD_UNIT_GTEST(acdriver AppIconSet Tests/test_AppIconSet.cpp)
+  ADD_UNIT_GTEST(acdriver LaunchImage Tests/test_LaunchImage.cpp)
 endif ()

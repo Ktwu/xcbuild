@@ -11,7 +11,6 @@
 #define __acdriver_Compile_Output_h
 
 #include <plist/Dictionary.h>
-#include <dependency/BinaryDependencyInfo.h>
 #include <car/Writer.h>
 
 #include <memory>
@@ -24,14 +23,10 @@ namespace libutil { class Filesystem; }
 namespace xcassets { namespace Asset { class Asset; } }
 
 namespace acdriver {
-
-class Options;
-class Result;
-
 namespace Compile {
 
 /*
- * Prints the contents of an asset catalog.
+ * Output for asset catalog compilation.
  */
 class Output {
 public:
@@ -51,15 +46,24 @@ private:
     Format                             _format;
 
 private:
-    ext::optional<car::Writer>         _car;
-    std::vector<std::pair<std::string, std::string>> _copies;
+    ext::optional<std::string>         _appIcon;
+    ext::optional<std::string>         _launchImage;
 
 private:
+    ext::optional<car::Writer>         _car;
+    std::vector<std::pair<std::string, std::string>> _copies;
     std::unique_ptr<plist::Dictionary> _additionalInfo;
-    dependency::BinaryDependencyInfo   _dependencyInfo;
+
+private:
+    std::vector<std::string>           _inputs;
+    std::vector<std::string>           _outputs;
 
 public:
-    Output(std::string const &root, Format format);
+    Output(
+        std::string const &root,
+        Format format,
+        ext::optional<std::string> const &appIcon,
+        ext::optional<std::string> const &launchImage);
 
 public:
     /*
@@ -76,6 +80,19 @@ public:
 
 public:
     /*
+     * The name of the app icon to use.
+     */
+    ext::optional<std::string> const &appIcon()
+    { return _appIcon; }
+
+    /*
+     * The name of the launch image to use.
+     */
+    ext::optional<std::string> const &launchImage()
+    { return _launchImage; }
+
+public:
+    /*
      * If the format is compiled, the compiled catalog writer.
      */
     ext::optional<car::Writer> const &car() const
@@ -84,14 +101,13 @@ public:
     { return _car; }
 
     /*
-     * Files to copy into the output directory.
+     * Files to copy into the output.
      */
     std::vector<std::pair<std::string, std::string>> const &copies() const
     { return _copies; }
     std::vector<std::pair<std::string, std::string>> &copies()
     { return _copies; }
 
-public:
     /*
      * Additional Info.plist entries to include.
      */
@@ -100,23 +116,22 @@ public:
     plist::Dictionary *additionalInfo()
     { return _additionalInfo.get(); }
 
-    /*
-     * Dependency info for the files used during the compilation.
-     */
-    dependency::BinaryDependencyInfo const &dependencyInfo() const
-    { return _dependencyInfo; }
-    dependency::BinaryDependencyInfo &dependencyInfo()
-    { return _dependencyInfo; }
-
 public:
     /*
-     * Write the output to the filesystem.
+     * Files that were read in as input.
      */
-    bool write(
-        libutil::Filesystem *filesystem,
-        ext::optional<std::string> const &partialInfoPlist,
-        ext::optional<std::string> const &dependencyInfo,
-        Result *result) const;
+    std::vector<std::string> const &inputs() const
+    { return _inputs; }
+    std::vector<std::string> &inputs()
+    { return _inputs; }
+
+    /*
+     * Files that are written as outputs.
+     */
+    std::vector<std::string> const &outputs() const
+    { return _outputs; }
+    std::vector<std::string> &outputs()
+    { return _outputs; }
 
 public:
     /*

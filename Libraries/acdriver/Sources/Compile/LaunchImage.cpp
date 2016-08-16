@@ -14,13 +14,11 @@
 #include <plist/Array.h>
 #include <plist/Dictionary.h>
 #include <plist/String.h>
-#include <libutil/Filesystem.h>
 
 using acdriver::Compile::LaunchImage;
 using acdriver::Compile::Convert;
 using acdriver::Compile::Output;
 using acdriver::Result;
-using libutil::Filesystem;
 
 static std::string
 LaunchImageSystemVersionValue(xcassets::Slot::SystemVersion const &version)
@@ -199,7 +197,6 @@ ImageSizeValue(size_t width, size_t height)
 bool LaunchImage::
 Compile(
     std::shared_ptr<xcassets::Asset::LaunchImage> const &launchImage,
-    Filesystem *filesystem,
     Output *compileOutput,
     Result *result)
 {
@@ -279,6 +276,7 @@ Compile(
             destination += ".png";
 
             compileOutput->copies().push_back({ source, destination });
+            compileOutput->outputs().push_back(destination);
 
             /*
              * Configure the image info. This is only relevant if there is a minimum system

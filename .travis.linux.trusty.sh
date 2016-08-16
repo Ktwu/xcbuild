@@ -1,8 +1,8 @@
 #! /bin/bash
 
-URL=ftp://ftp.simplesystems.org/pub/libpng/png/src/libpng16/libpng-1.6.23.tar.gz
-FILE=libpng-1.6.23.tar.gz
-MD5SUM=a49e4cc48d968c79def53d082809c9f2
+FILE=libpng-1.6.24.tar.gz
+URL=ftp://ftp.simplesystems.org/pub/libpng/png/src/libpng16/$FILE
+MD5SUM=65213080dd30a9b16193d9b83adc1ee9
 
 echo Downloading $URL
 curl $URL -o $FILE

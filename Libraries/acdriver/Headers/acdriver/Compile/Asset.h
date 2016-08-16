@@ -7,13 +7,14 @@
  of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#ifndef __acdriver_Compile_AppIconSet_h
-#define __acdriver_Compile_AppIconSet_h
+#ifndef __acdriver_Compile_Asset_h
+#define __acdriver_Compile_Asset_h
 
 #include <xcassets/Asset/Asset.h>
-#include <xcassets/Asset/AppIconSet.h>
 
 #include <memory>
+
+namespace libutil { class Filesystem; }
 
 namespace acdriver {
 
@@ -23,14 +24,15 @@ namespace Compile {
 
 class Output;
 
-class AppIconSet {
+class Asset {
 private:
-    AppIconSet();
-    ~AppIconSet();
+    Asset();
+    ~Asset();
 
 public:
     static bool Compile(
-        std::shared_ptr<xcassets::Asset::AppIconSet> const &appIconSet,
+        std::shared_ptr<xcassets::Asset::Asset> const &asset,
+        libutil::Filesystem *filesystem,
         Output *compileOutput,
         Result *result);
 };
@@ -38,4 +40,4 @@ public:
 }
 }
 
-#endif // !__acdriver_Compile_AppIconSet_h
+#endif // !__acdriver_Compile_Asset_h
