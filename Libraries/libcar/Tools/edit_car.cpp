@@ -25,6 +25,7 @@ class Options {
     ext::optional<bool>        _version;
     ext::optional<bool>        _help;
     std::vector<std::string>   _removeAssets;
+    std::vector<std::string>   _removeScales;
     ext::optional<std::string> _input;
     ext::optional<std::string> _output;
 
@@ -46,6 +47,9 @@ public:
 
     std::vector<std::string> const &removeAssets() const
     { return _removeAssets; }
+
+    std::vector<std::string> const &removeScales() const
+    { return _removeScales; }
 
 private:
     friend class libutil::Options;
@@ -75,6 +79,8 @@ parseArgument(std::vector<std::string> const &args,
         return libutil::Options::Next<std::string>(&_output, args, it);
     } else if (arg == "--remove-asset") {
         return libutil::Options::AppendNext<std::string>(&_removeAssets, args, it);
+    } else if (arg == "--remove-scale") {
+        return libutil::Options::AppendNext<std::string>(&_removeScales, args, it);
     } else {
         return std::make_pair(false, "unknown argument " + arg);
     }
@@ -84,8 +90,26 @@ static void
 _print_help(char *name)
 {
     fprintf(stderr,
-        "Usage: %s --input <filename> --output <filename> [--remove-asset <regex>]\n", name);
+        "Usage: %s --input <filename> --output <filename> [--remove-asset <regex>] [--remove-scale <integer>]\n", name);
 }
+
+static size_t
+_attribute_index(struct car_key_format *keyfmt, uint16_t attribute_identifier)
+{
+    for (size_t i = 0; i < keyfmt->num_identifiers; i++) {
+        if (keyfmt->identifier_list[i] == attribute_identifier) {
+            return i;
+        }
+    }
+    return SIZE_T_MAX;
+}
+
+typedef struct {
+    void *key;
+    size_t keyLength;
+    void *value;
+    size_t valueLength;
+} KeyValuePair;
 
 int
 main(int argc, char **argv)
@@ -140,9 +164,14 @@ main(int argc, char **argv)
     }
     ext::optional<car::Writer> writer = car::Writer::Create(std::move(bom_writer));
 
-    std::vector<std::regex> filters;
+    std::vector<std::regex> facetFilters;
     for (const auto &removeAsset : options.removeAssets()) {
-        filters.push_back(std::regex(removeAsset));
+        facetFilters.push_back(std::regex(removeAsset));
+    }
+
+    std::vector<uint16_t> scaleFilters;
+    for (const auto &scale : options.removeScales()) {
+        scaleFilters.push_back(std::stoi(scale));
     }
 
     // Get the offset of the identifier in the rendition key
@@ -152,22 +181,29 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
     writer->keyfmt() = keyfmt;
-    size_t identifier_index = 0;
 
-    // Scan the key format for the facet identifier index
-    for (size_t i = 0; i < keyfmt->num_identifiers; i++) {
-        if (keyfmt->identifier_list[i] == car_attribute_identifier_identifier) {
-            identifier_index = i;
-            break;
-        }
+    // Scan the key format for the facet identifier and scale index
+    size_t identifier_index = _attribute_index(keyfmt, car_attribute_identifier_identifier);
+    if (identifier_index == SIZE_T_MAX) {
+        fprintf(stderr, "error: Could not find identifier in key format\n");
+        exit(EXIT_FAILURE);
+    }
+    size_t scale_index = _attribute_index(keyfmt, car_attribute_identifier_scale);
+    if (scale_index == SIZE_T_MAX && options.removeScales().size() > 0) {
+        fprintf(stderr, "error: Could not find scale in key format\n");
+        exit(EXIT_FAILURE);
     }
 
-    reader->facetIterate([&reader, &writer, &filters, identifier_index, keyfmt](car::Facet const &facet) {
-        for (auto const &filter : filters) {
+    reader->facetIterate([&reader, &writer, &facetFilters, &scaleFilters, identifier_index, scale_index](car::Facet const &facet) {
+        for (auto const &filter : facetFilters) {
             if (std::regex_match(facet.name(), filter)) {
                 return;
             }
         }
+
+        // Collect a list of the renditions in raw key/value form
+        // This is _much_ faster
+        std::vector<KeyValuePair> renditions = {};
 
         ext::optional<uint16_t> id_lookup = facet.attributes().get(car_attribute_identifier_identifier);
         if (!id_lookup) {
@@ -175,14 +211,38 @@ main(int argc, char **argv)
         }
         uint16_t facet_identifier = *id_lookup;
 
-        writer->addFacet(std::move(facet));
-
-        reader->renditionFastIterate([facet_identifier, &writer, identifier_index, keyfmt](void *key, size_t key_len, void *value, size_t value_len) {
-            uint16_t *raw_attributes = (uint16_t *)key;
-            if (raw_attributes[identifier_index] == facet_identifier) {
-                writer->addRendition(key, key_len, value, value_len);
+        reader->renditionFastIterate([facet_identifier, identifier_index, &renditions](void *key, size_t keyLength, void *value, size_t valueLength) {
+            uint16_t *raw_attributes = static_cast<uint16_t *>(key);
+            if (raw_attributes[identifier_index] != facet_identifier) {
+                // Skip unrelated renditions
+                return;
             }
+            renditions.push_back({key, keyLength, value, valueLength});
         });
+
+        // Filter intelligently based on scale here
+        // We only want to remove a scale if we have an alternate rendition
+        for (const auto scale : scaleFilters) {
+            for (int i = 0; i < renditions.size() && renditions.size() >= 2; ) {
+                uint16_t *raw_attributes = static_cast<uint16_t *>(renditions[i].key);
+                if (raw_attributes[scale_index] == scale) {
+                    renditions.erase(renditions.begin() + i);
+                } else {
+                    i++;
+                }
+            }
+        }
+
+        if (renditions.size() == 0) {
+            // Either no Renditions found for Facets, or all have been filtered
+            return;
+        }
+
+        // At this point we have at least one rendition left
+        writer->addFacet(std::move(car::Facet(facet)));
+        for (const auto &kv : renditions) {
+            writer->addRendition(kv.key, kv.keyLength, kv.value, kv.valueLength);
+        }
     });
 
     writer->write();
