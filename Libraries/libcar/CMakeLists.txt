@@ -31,6 +31,7 @@ install(TARGETS car DESTINATION usr/lib)
 
 add_executable(dump_car Tools/dump_car.cpp)
 target_link_libraries(dump_car PRIVATE car graphics)
+install(TARGETS dump_car DESTINATION usr/bin)
 
 add_executable(edit_car Tools/edit_car.cpp)
 target_link_libraries(edit_car PRIVATE car bom ext util)
