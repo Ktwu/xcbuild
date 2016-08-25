@@ -185,8 +185,9 @@ main(int argc, char **argv)
     // Scan the key format for the facet identifier and scale index
     size_t identifier_index = _attribute_index(keyfmt, car_attribute_identifier_identifier);
     if (identifier_index == SIZE_MAX) {
-        fprintf(stderr, "error: Could not find identifier in key format\n");
-        exit(EXIT_FAILURE);
+        // There are no imagesets
+        writer->write();
+        return EXIT_SUCCESS;
     }
     size_t scale_index = _attribute_index(keyfmt, car_attribute_identifier_scale);
     if (scale_index == SIZE_MAX && options.removeScales().size() > 0) {
