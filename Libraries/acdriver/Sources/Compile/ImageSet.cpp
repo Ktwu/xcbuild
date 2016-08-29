@@ -15,6 +15,7 @@
 #include <graphics/Format/PNG.h>
 #include <xcassets/Asset/ImageSet.h>
 #include <xcassets/Slot/Idiom.h>
+#include <xcassets/TemplateRenderingIntent.h>
 #include <car/Facet.h>
 #include <car/Rendition.h>
 #include <car/Writer.h>
@@ -194,6 +195,9 @@ CompileAsset(
     rendition.height() = height;
     rendition.scale() = scale;
     rendition.fileName() = *image.fileName();
+    if (imageSet->templateRenderingIntent() == xcassets::TemplateRenderingIntent::Template) {
+        rendition.isOpaque() = 1;
+    }
 
     if (image.resizing()) {
         xcassets::Resizing const &resizing = *image.resizing();

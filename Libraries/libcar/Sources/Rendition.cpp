@@ -82,6 +82,7 @@ dump() const
     printf("Height: %d\n", _height);
     printf("Scale: %f\n", _scale);
     printf("Layout: %d\n", _layout);
+    printf("isOpaque: %d\n", _isOpaque);
 
     printf("Resizable: %d\n", _isResizable);
     if (_isResizable) {
