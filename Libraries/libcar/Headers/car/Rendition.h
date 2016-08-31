@@ -54,9 +54,11 @@ public:
     private:
         std::vector<uint8_t> _data;
         Format               _format;
+        bool                 _ignoreAlpha;
 
     public:
         Data(std::vector<uint8_t> const &data, Format format);
+        Data(std::vector<uint8_t> const &data, Format format, bool ignore_alpha);
 
     public:
         /*
@@ -74,6 +76,14 @@ public:
         { return _format; }
         Format &format()
         { return _format; }
+
+        /*
+         * The pixel format of the data.
+         */
+        bool ignoreAlpha() const
+        { return _ignoreAlpha; }
+        bool &ignoreAlpha()
+        { return _ignoreAlpha; }
     };
 
 public:

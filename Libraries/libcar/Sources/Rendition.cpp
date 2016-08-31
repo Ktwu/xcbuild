@@ -28,7 +28,16 @@ using car::Rendition;
 Rendition::Data::
 Data(std::vector<uint8_t> const &data, Format format) :
     _data  (data),
-    _format(format)
+    _format(format),
+    _ignoreAlpha(false)
+{
+}
+
+Rendition::Data::
+Data(std::vector<uint8_t> const &data, Format format, bool ignoreAlpha) :
+    _data  (data),
+    _format(format),
+    _ignoreAlpha(ignoreAlpha)
 {
 }
 
@@ -82,8 +91,7 @@ dump() const
     printf("Height: %d\n", _height);
     printf("Scale: %f\n", _scale);
     printf("Layout: %d\n", _layout);
-    printf("isOpaque: %d\n", _isOpaque);
-
+    printf("Opaque: %d\n", _isOpaque);
     printf("Resizable: %d\n", _isResizable);
     if (_isResizable) {
         for (size_t i = 0; i < _slices.size(); i++) {
@@ -285,7 +293,6 @@ Decode(struct car_rendition_value *value)
     } else if (value->pixel_format == car_rendition_value_pixel_format_jpeg) {
         format = Rendition::Data::Format::JPEG;
     } else {
-        format = Rendition::Data::Format::Data;
         fprintf(stderr, "error: unsupported pixel format %.4s\n", (char const *)&value->pixel_format);
         return ext::nullopt;
     }
@@ -305,8 +312,6 @@ Decode(struct car_rendition_value *value)
 
     size_t bytes_per_pixel = Rendition::Data::FormatSize(format);
     size_t uncompressed_length = value->width * value->height * bytes_per_pixel;
-    Rendition::Data data = Rendition::Data(std::vector<uint8_t>(uncompressed_length), format);
-    void *uncompressed_data = static_cast<void *>(data.data().data());
 
     /* Advance past the header and the info section. We just want the data. */
     struct car_rendition_data_header1 *header1 = (struct car_rendition_data_header1 *)((uintptr_t)value + sizeof(struct car_rendition_value) + value->info_len);
@@ -315,6 +320,9 @@ Decode(struct car_rendition_value *value)
         fprintf(stderr, "error: header1 magic is wrong, can't possibly decode\n");
         return ext::nullopt;
     }
+
+    Rendition::Data data = Rendition::Data(std::vector<uint8_t>(uncompressed_length), format, header1->flags.ignore_alpha);
+    void *uncompressed_data = static_cast<void *>(data.data().data());
 
     void *compressed_data = &header1->data;
     size_t compressed_length = header1->length;
@@ -419,16 +427,18 @@ Encode(Rendition const *rendition, ext::optional<Rendition::Data> data)
         return ext::nullopt;
     }
 
+    auto format = data->format();
+
     /*
      * If the format is already as required, nothing to do.
      */
-    if (data->format() == Rendition::Data::Format::JPEG || data->format() == Rendition::Data::Format::Data) {
+    if (format == Rendition::Data::Format::JPEG || format == Rendition::Data::Format::Data) {
         return data->data();
     }
 
     // The selected algorithm, only zlib for now
     enum car_rendition_data_compression_magic compression_magic = car_rendition_data_compression_magic_zlib;
-    size_t bytes_per_pixel = Rendition::Data::FormatSize(data->format());
+    size_t bytes_per_pixel = Rendition::Data::FormatSize(format);
 
     size_t uncompressed_length = rendition->width() * rendition->height() * bytes_per_pixel;
     void *uncompressed_data = static_cast<void *>(data->data().data());
@@ -470,6 +480,8 @@ Encode(Rendition const *rendition, ext::optional<Rendition::Data> data)
     struct car_rendition_data_header1 *header1 = reinterpret_cast<struct car_rendition_data_header1 *>(output.data());
     memcpy(header1->magic, "MLEC", sizeof(header1->magic));
     header1->length = compressed_vector.size();
+    header1->flags.color = (format == Rendition::Data::Format::PremultipliedBGRA8);
+    header1->flags.ignore_alpha = data->ignoreAlpha();
     header1->compression = compression_magic;
     output.insert(output.end(), compressed_vector.begin(), compressed_vector.end());
 
@@ -626,6 +638,7 @@ write() const
 
     memcpy(output_bytes, info_slices, info_slices_size);
     output_bytes += info_slices_size;
+    free(info_slices);
 
     memcpy(output_bytes, &info_metrics, sizeof(struct car_rendition_info_metrics));
     output_bytes += sizeof(struct car_rendition_info_metrics);

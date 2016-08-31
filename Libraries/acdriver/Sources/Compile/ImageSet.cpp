@@ -97,6 +97,7 @@ CompileAsset(
     std::vector<uint8_t> pixels;
     size_t width = 0;
     size_t height = 0;
+    bool ignoreAlpha = false;
     car::Rendition::Data::Format format = car::Rendition::Data::Format::Data;
 
     if (FSUtil::IsFileExtension(filename, "png", true)) {
@@ -141,6 +142,17 @@ CompileAsset(
                         graphics::PixelFormat::Order::Reversed,
                         graphics::PixelFormat::Alpha::PremultipliedFirst));
                 break;
+        }
+
+        /* All formats result in an alpha channel, check if it can be ignored */
+        switch (image.format().alpha()) {
+            case graphics::PixelFormat::Alpha::None:
+            case graphics::PixelFormat::Alpha::IgnoredFirst:
+            case graphics::PixelFormat::Alpha::IgnoredLast:
+                ignoreAlpha = true;
+                break;
+            default:
+                ignoreAlpha = false;
         }
     } else if (FSUtil::IsFileExtension(filename, "jpg", true) || FSUtil::IsFileExtension(filename, "jpeg", true)) {
         if (!filesystem->read(&pixels, filename)) {
@@ -188,7 +200,7 @@ CompileAsset(
         { car_attribute_identifier_identifier, facetIdentifier },
     });
 
-    auto data = ext::optional<car::Rendition::Data>(car::Rendition::Data(std::move(pixels), format));
+    auto data = ext::optional<car::Rendition::Data>(car::Rendition::Data(std::move(pixels), format, ignoreAlpha));
 
     car::Rendition rendition = car::Rendition::Create(attributes, std::move(data));
     rendition.width() = width;

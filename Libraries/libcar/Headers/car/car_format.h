@@ -383,8 +383,8 @@ enum car_rendition_info_magic {
 struct car_rendition_data_header1 {
     char magic[4]; // CELM
     struct {
-        unsigned int unknown1 : 1;
-        unsigned int unknown2 : 1;
+        unsigned int color : 1;
+        unsigned int ignore_alpha : 1;
         unsigned int reserved : 30;
     } flags;
     uint32_t compression; // see magic below
