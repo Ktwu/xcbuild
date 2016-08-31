@@ -23,6 +23,13 @@ target_link_libraries(car PRIVATE ${ZLIB_LIBRARIES})
 find_library(COMPRESSION compression)
 if ("${COMPRESSION}" STREQUAL "COMPRESSION-NOTFOUND")
   set(COMPRESSION "")
+  set_target_properties(car
+                        PROPERTIES
+                        COMPILE_DEFINITIONS "HAVE_LIBCOMPRESSION=0")
+else()
+  set_target_properties(car
+                        PROPERTIES
+                        COMPILE_DEFINITIONS "HAVE_LIBCOMPRESSION=1")
 endif ()
 
 target_link_libraries(car PUBLIC ext bom ${COMPRESSION})
