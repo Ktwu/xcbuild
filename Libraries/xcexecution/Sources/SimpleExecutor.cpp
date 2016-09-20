@@ -15,6 +15,7 @@
 #include <pbxbuild/Phase/PhaseInvocations.h>
 #include <libutil/Filesystem.h>
 #include <libutil/FSUtil.h>
+#include <libutil/SysUtil.h>
 #include <libutil/Subprocess.h>
 
 #include <sys/types.h>
@@ -23,6 +24,7 @@
 using xcexecution::SimpleExecutor;
 using libutil::Filesystem;
 using libutil::FSUtil;
+using libutil::SysUtil;
 using libutil::Subprocess;
 
 SimpleExecutor::
@@ -43,7 +45,7 @@ build(
     pbxbuild::Build::Environment const &buildEnvironment,
     Parameters const &buildParameters)
 {
-    ext::optional<pbxbuild::WorkspaceContext> workspaceContext = buildParameters.loadWorkspace(filesystem, buildEnvironment, FSUtil::GetCurrentDirectory());
+    ext::optional<pbxbuild::WorkspaceContext> workspaceContext = buildParameters.loadWorkspace(filesystem, buildEnvironment, SysUtil::GetDefault()->currentDirectory());
     if (!workspaceContext) {
         return false;
     }
@@ -167,7 +169,27 @@ writeAuxiliaryFiles(
             xcformatter::Formatter::Print(_formatter->writeAuxiliaryFile(auxiliaryFile.path()));
 
             if (!_dryRun) {
-                if (!filesystem->write(auxiliaryFile.contents(), auxiliaryFile.path())) {
+                std::vector<uint8_t> data;
+
+                for (pbxbuild::Tool::Invocation::AuxiliaryFile::Chunk const &chunk : auxiliaryFile.chunks()) {
+                    switch (chunk.type()) {
+                        case pbxbuild::Tool::Invocation::AuxiliaryFile::Chunk::Type::Data: {
+                            data.insert(data.end(), chunk.data()->begin(), chunk.data()->end());
+                            break;
+                        }
+                        case pbxbuild::Tool::Invocation::AuxiliaryFile::Chunk::Type::File: {
+                            std::vector<uint8_t> contents;
+                            if (!filesystem->read(&contents, *chunk.file())) {
+                                return false;
+                            }
+                            data.insert(data.end(), contents.begin(), contents.end());
+                            break;
+                        }
+                        default: abort();
+                    }
+                }
+
+                if (!filesystem->write(data, auxiliaryFile.path())) {
                     return false;
                 }
             }
@@ -235,7 +257,7 @@ performInvocations(
             } else {
                 /* External tool, run the tool externally. */
                 Subprocess process;
-                if (!process.execute(invocation.executable().path(), invocation.arguments(), invocation.environment(), invocation.workingDirectory()) || process.exitcode() != 0) {
+                if (!process.execute(filesystem, invocation.executable().path(), invocation.arguments(), invocation.environment(), invocation.workingDirectory()) || process.exitcode() != 0) {
                     xcformatter::Formatter::Print(_formatter->finishInvocation(invocation, invocation.executable().displayName(), createProductStructure));
                     return std::make_pair(false, std::vector<pbxbuild::Tool::Invocation>({ invocation }));
                 }

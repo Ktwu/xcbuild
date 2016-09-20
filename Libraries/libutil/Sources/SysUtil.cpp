@@ -11,6 +11,7 @@
 #include <libutil/FSUtil.h>
 
 #include <sstream>
+#include <unordered_set>
 #include <cstring>
 #include <cassert>
 
@@ -29,26 +30,19 @@
 #endif
 #endif
 
-extern char **environ;
+extern "C" char **environ;
 
 using libutil::SysUtil;
 using libutil::FSUtil;
 
-std::unordered_map<std::string, std::string> SysUtil::
-EnvironmentVariables()
+std::string SysUtil::
+currentDirectory() const
 {
-    std::unordered_map<std::string, std::string> environment;
-
-    for (char **current = environ; *current; current++) {
-        std::string variable = *current;
-        std::string::size_type offset = variable.find('=');
-
-        std::string name = variable.substr(0, offset);
-        std::string value = variable.substr(offset + 1);
-        environment.insert(std::make_pair(name, value));
+    char path[PATH_MAX + 1];
+    if (::getcwd(path, sizeof(path)) == nullptr) {
+        path[0] = '\0';
     }
-
-    return environment;
+    return path;
 }
 
 #if defined(__linux__)
@@ -72,7 +66,7 @@ static void InitialExecutablePathInitialize(int argc, char **argv)
 #endif
 
 std::string SysUtil::
-GetExecutablePath()
+executablePath() const
 {
 #if defined(__APPLE__)
     uint32_t size = 0;
@@ -107,17 +101,67 @@ GetExecutablePath()
 #endif
 }
 
+ext::optional<std::string> SysUtil::
+environmentVariable(std::string const &variable) const
+{
+    if (char *value = getenv(variable.c_str())) {
+        return std::string(value);
+    } else {
+        return ext::nullopt;
+    }
+}
+
+std::unordered_map<std::string, std::string> SysUtil::
+environmentVariables() const
+{
+    std::unordered_map<std::string, std::string> environment;
+
+    for (char **current = environ; *current; current++) {
+        std::string variable = *current;
+        std::string::size_type offset = variable.find('=');
+
+        std::string name = variable.substr(0, offset);
+        std::string value = variable.substr(offset + 1);
+        environment.insert({ name, value });
+    }
+
+    return environment;
+}
+
+std::vector<std::string> SysUtil::
+executableSearchPaths() const
+{
+    std::vector<std::string> paths;
+
+    if (ext::optional<std::string> value = environmentVariable("PATH")) {
+        std::unordered_set<std::string> seen;
+
+        std::string path;
+        std::istringstream is(*value);
+        while (std::getline(is, path, ':')) {
+            if (seen.find(path) != seen.end()) {
+                continue;
+            }
+
+            paths.push_back(path);
+            seen.insert(path);
+        }
+    }
+
+    return paths;
+}
+
 std::string SysUtil::
-GetUserName()
+userName() const
 {
     std::string result;
 
-    struct passwd const *pw = ::getpwuid(::getuid());
-    if (pw != nullptr) {
+    if (struct passwd const *pw = ::getpwuid(::getuid())) {
         if (pw->pw_name != nullptr) {
-            result = pw->pw_name;
+            result = std::string(pw->pw_name);
         }
     }
+
     if (result.empty()) {
         std::ostringstream os;
         os << ::getuid();
@@ -130,16 +174,16 @@ GetUserName()
 }
 
 std::string SysUtil::
-GetGroupName()
+groupName() const
 {
     std::string result;
 
-    struct group const *gr = ::getgrgid(::getgid());
-    if (gr != nullptr) {
+    if (struct group const *gr = ::getgrgid(::getgid())) {
         if (gr->gr_name != nullptr) {
             result = gr->gr_name;
         }
     }
+
     if (result.empty()) {
         std::ostringstream os;
         os << ::getgid();
@@ -152,32 +196,25 @@ GetGroupName()
 }
 
 int32_t SysUtil::
-GetUserID()
+userID() const
 {
     return ::getuid();
 }
 
 int32_t SysUtil::
-GetGroupID()
+groupID() const
 {
     return ::getgid();
 }
 
-void SysUtil::
-Sleep(uint64_t us, bool interruptible)
+SysUtil const *SysUtil::
+GetDefault()
 {
-    struct timeval tv;
-
-    tv.tv_sec  = us / 1000000;
-    tv.tv_usec = us % 1000000;
-
-    for (;;) {
-        int rc = ::select(0, nullptr, nullptr, nullptr, &tv);
-        if (rc < 0) {
-            if (errno == EINTR && !interruptible)
-                continue;
-
-            break;
-        }
+    static SysUtil *sysUtil = nullptr;
+    if (sysUtil == nullptr) {
+        sysUtil = new SysUtil();
     }
+
+    return sysUtil;
 }
+

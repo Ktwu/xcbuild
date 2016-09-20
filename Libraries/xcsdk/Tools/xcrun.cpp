@@ -251,19 +251,15 @@ main(int argc, char **argv)
      */
     ext::optional<std::string> toolchainsInput = options.toolchain();
     if (!toolchainsInput) {
-        if (char const *toolchains = getenv("TOOLCHAINS")) {
-            toolchainsInput = std::string(toolchains);
-        }
+        toolchainsInput = SysUtil::GetDefault()->environmentVariable("TOOLCHAINS");
     }
     ext::optional<std::string> SDK = options.SDK();
     if (!SDK) {
-        if (char const *sdkroot = getenv("SDKROOT")) {
-            SDK = std::string(sdkroot);
-        }
+        SDK = SysUtil::GetDefault()->environmentVariable("SDKROOT");
     }
-    bool verbose = options.verbose() || getenv("xcrun_verbose") != NULL;
-    bool log = options.log() || getenv("xcrun_log") != NULL;
-    bool nocache = options.noCache() || getenv("xcrun_nocache") != NULL;
+    bool verbose = options.verbose() || (bool)SysUtil::GetDefault()->environmentVariable("xcrun_verbose");
+    bool log = options.log() || (bool)SysUtil::GetDefault()->environmentVariable("xcrun_log");
+    bool nocache = options.noCache() || (bool)SysUtil::GetDefault()->environmentVariable("xcrun_nocache");
 
     /*
      * Warn about unhandled arguments.
@@ -275,18 +271,18 @@ main(int argc, char **argv)
     /*
      * Create filesystem.
      */
-    auto filesystem = std::unique_ptr<Filesystem>(new DefaultFilesystem());
+    DefaultFilesystem filesystem = DefaultFilesystem();
 
     /*
      * Load the SDK manager from the developer root.
      */
-    ext::optional<std::string> developerRoot = xcsdk::Environment::DeveloperRoot(filesystem.get());
+    ext::optional<std::string> developerRoot = xcsdk::Environment::DeveloperRoot(&filesystem);
     if (!developerRoot) {
         fprintf(stderr, "error: unable to find developer root\n");
         return -1;
     }
-    auto configuration = xcsdk::Configuration::Load(filesystem.get(), xcsdk::Configuration::DefaultPaths());
-    auto manager = xcsdk::SDK::Manager::Open(filesystem.get(), *developerRoot, configuration);
+    auto configuration = xcsdk::Configuration::Load(&filesystem, xcsdk::Configuration::DefaultPaths());
+    auto manager = xcsdk::SDK::Manager::Open(&filesystem, *developerRoot, configuration);
     if (manager == nullptr) {
         fprintf(stderr, "error: unable to load manager from '%s'\n", developerRoot->c_str());
         return -1;
@@ -362,6 +358,9 @@ main(int argc, char **argv)
 
         return 0;
     } else {
+        /*
+         * Perform toolchain-specific actions.
+         */
         if (!options.tool()) {
             return Help("no tool provided");
         }
@@ -403,14 +402,14 @@ main(int argc, char **argv)
          * Can be in toolchains, target (if one is provided), developer root,
          * or default paths.
          */
-        std::vector<std::string> executablePaths = manager->executablePaths(target, toolchains);
-        std::vector<std::string> defaultExecutablePaths = FSUtil::GetExecutablePaths();
+        std::vector<std::string> executablePaths = manager->executablePaths(target != nullptr ? target->platform() : nullptr, target, toolchains);
+        std::vector<std::string> defaultExecutablePaths = SysUtil::GetDefault()->executableSearchPaths();
         executablePaths.insert(executablePaths.end(), defaultExecutablePaths.begin(), defaultExecutablePaths.end());
 
         /*
          * Find the tool to execute.
          */
-        ext::optional<std::string> executable = filesystem->findExecutable(*options.tool(), executablePaths);
+        ext::optional<std::string> executable = filesystem.findExecutable(*options.tool(), executablePaths);
         if (!executable) {
             fprintf(stderr, "error: tool '%s' not found\n", options.tool()->c_str());
             return 1;
@@ -428,13 +427,13 @@ main(int argc, char **argv)
         } else {
             /* Run is the default. */
 
-            std::unordered_map<std::string, std::string> environment = SysUtil::EnvironmentVariables();
+            std::unordered_map<std::string, std::string> environment = SysUtil::GetDefault()->environmentVariables();
+
             if (target != nullptr) {
                 /*
                  * Update effective environment to include the target path.
                  */
                 environment["SDKROOT"] = target->path();
-
                 if (log) {
                     printf("env SDKROOT=%s %s\n", target->path().c_str(), executable->c_str());
                 }
@@ -447,7 +446,7 @@ main(int argc, char **argv)
                 printf("verbose: executing tool: %s\n", executable->c_str());
             }
             Subprocess process;
-            if (!process.execute(*executable, options.args(), environment)) {
+            if (!process.execute(&filesystem, *executable, options.args(), environment, SysUtil::GetDefault()->currentDirectory())) {
                 fprintf(stderr, "error: unable to execute tool '%s'\n", options.tool()->c_str());
                 return -1;
             }

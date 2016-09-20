@@ -15,6 +15,7 @@
 #include <pbxbuild/Tool/HeadermapInfo.h>
 #include <pbxbuild/Tool/CompilationInfo.h>
 #include <pbxbuild/Tool/SwiftModuleInfo.h>
+#include <pbxbuild/Tool/ModuleMapInfo.h>
 #include <pbxbuild/Tool/PrecompiledHeaderInfo.h>
 #include <pbxbuild/Tool/SearchPaths.h>
 #include <xcsdk/SDK/Target.h>
@@ -25,19 +26,20 @@ namespace Tool {
 
 class Context {
 private:
-    xcsdk::SDK::Target::shared_ptr      _sdk;
-    xcsdk::SDK::Toolchain::vector       _toolchains;
-    std::vector<std::string>            _executablePaths;
-    std::string                         _workingDirectory;
+    xcsdk::SDK::Target::shared_ptr _sdk;
+    std::vector<xcsdk::SDK::Toolchain::shared_ptr> _toolchains;
+    std::vector<std::string>       _executablePaths;
+    std::string                    _workingDirectory;
 
 private:
-    SearchPaths                         _searchPaths;
+    SearchPaths                    _searchPaths;
 
 private:
-    HeadermapInfo                       _headermapInfo;
-    CompilationInfo                     _compilationInfo;
-    std::vector<SwiftModuleInfo>        _swiftModuleInfo;
-    std::vector<std::string>            _additionalInfoPlistContents;
+    HeadermapInfo                  _headermapInfo;
+    ModuleMapInfo                  _moduleMapInfo;
+    CompilationInfo                _compilationInfo;
+    std::vector<SwiftModuleInfo>   _swiftModuleInfo;
+    std::vector<std::string>       _additionalInfoPlistContents;
 
 private:
     std::vector<Tool::Invocation> _invocations;
@@ -46,7 +48,7 @@ private:
 public:
     Context(
         xcsdk::SDK::Target::shared_ptr const &sdk,
-        xcsdk::SDK::Toolchain::vector const &toolchains,
+        std::vector<xcsdk::SDK::Toolchain::shared_ptr> const &toolchains,
         std::vector<std::string> const &executablePaths,
         std::string const &workingDirectory,
         SearchPaths const &searchPaths);
@@ -55,7 +57,7 @@ public:
 public:
     xcsdk::SDK::Target::shared_ptr const &sdk() const
     { return _sdk; }
-    xcsdk::SDK::Toolchain::vector const &toolchains() const
+    std::vector<xcsdk::SDK::Toolchain::shared_ptr> const &toolchains() const
     { return _toolchains; }
     std::vector<std::string> const &executablePaths() const
     { return _executablePaths; }
@@ -69,6 +71,8 @@ public:
 public:
     HeadermapInfo const &headermapInfo() const
     { return _headermapInfo; }
+    ModuleMapInfo const &moduleMapInfo() const
+    { return _moduleMapInfo; }
     CompilationInfo const &compilationInfo() const
     { return _compilationInfo; }
     std::vector<SwiftModuleInfo> const &swiftModuleInfo() const
@@ -79,6 +83,8 @@ public:
 public:
     HeadermapInfo &headermapInfo()
     { return _headermapInfo; }
+    ModuleMapInfo &moduleMapInfo()
+    { return _moduleMapInfo; }
     CompilationInfo &compilationInfo()
     { return _compilationInfo; }
     std::vector<SwiftModuleInfo> &swiftModuleInfo()

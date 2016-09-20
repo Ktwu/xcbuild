@@ -15,10 +15,12 @@
 #include <libutil/Base.h>
 #include <libutil/Filesystem.h>
 #include <libutil/FSUtil.h>
+#include <libutil/SysUtil.h>
 
 using xcsdk::Environment;
 using libutil::Filesystem;
 using libutil::FSUtil;
+using libutil::SysUtil;
 
 static std::string
 UserDeveloperRootLink()
@@ -59,8 +61,8 @@ ResolveDeveloperRoot(Filesystem const *filesystem, std::string const &path)
 ext::optional<std::string> Environment::
 DeveloperRoot(Filesystem const *filesystem)
 {
-    if (char *path = getenv("DEVELOPER_DIR")) {
-        return ResolveDeveloperRoot(filesystem, path);
+    if (auto path = SysUtil::GetDefault()->environmentVariable("DEVELOPER_DIR")) {
+        return ResolveDeveloperRoot(filesystem, *path);
     }
 
     if (auto path = filesystem->readSymbolicLink(UserDeveloperRootLink())) {

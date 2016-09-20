@@ -11,26 +11,72 @@
 #define __libutil_SysUtil_h
 
 #include <string>
+#include <vector>
 #include <unordered_map>
+#include <ext/optional>
 
 namespace libutil {
 
 class SysUtil {
 public:
-    static std::unordered_map<std::string, std::string> EnvironmentVariables();
+    /*
+     * The path to the running executable.
+     */
+    std::string executablePath() const;
+
+    /*
+     * The current directory of the process.
+     */
+    std::string currentDirectory() const;
 
 public:
-    static std::string GetExecutablePath();
+    /*
+     * All environment variables.
+     */
+    std::unordered_map<std::string, std::string> environmentVariables() const;
 
 public:
-    static std::string GetUserName();
-    static std::string GetGroupName();
+    /*
+     * Active user ID.
+     */
+    int32_t userID() const;
 
-    static int32_t GetUserID();
-    static int32_t GetGroupID();
+    /*
+     * Active group ID.
+     */
+    int32_t groupID() const;
+
+    /*
+     * Active user name.
+     */
+    std::string userName() const;
+
+    /*
+     * Active group name.
+     */
+    std::string groupName() const;
 
 public:
-    static void Sleep(uint64_t us, bool interruptible = false);
+    /*
+     * Single environment variable.
+     */
+    ext::optional<std::string> environmentVariable(std::string const &variable) const;
+
+    /*
+     * The default environment search paths.
+     */
+    std::vector<std::string> executableSearchPaths() const;
+
+    /*
+     * The home directory from the environment.
+     */
+    std::string userHomeDirectory() const;
+
+public:
+    /*
+     * Get the system instance.
+     */
+    static SysUtil const *GetDefault();
 };
 
 }

@@ -124,18 +124,23 @@ executablePaths() const
 }
 
 std::vector<std::string> Manager::
-executablePaths(xcsdk::SDK::Target::shared_ptr const &target, std::vector<xcsdk::SDK::Toolchain::shared_ptr> const &toolchains) const
+executablePaths(Platform::shared_ptr const &platform, Target::shared_ptr const &target, std::vector<Toolchain::shared_ptr> const &toolchains) const
 {
     std::vector<std::string> paths;
 
     if (target != nullptr) {
-        std::vector<std::string> targetPaths = target->executablePaths(toolchains);
+        std::vector<std::string> targetPaths = target->executablePaths();
         paths.insert(paths.end(), targetPaths.begin(), targetPaths.end());
-    } else {
-        for (Toolchain::shared_ptr const &toolchain : toolchains) {
-            std::vector<std::string> toolchainPaths = toolchain->executablePaths();
-            paths.insert(paths.end(), toolchainPaths.begin(), toolchainPaths.end());
-        }
+    }
+
+    if (platform != nullptr) {
+        std::vector<std::string> platformPaths = platform->executablePaths();
+        paths.insert(paths.end(), platformPaths.begin(), platformPaths.end());
+    }
+
+    for (Toolchain::shared_ptr const &toolchain : toolchains) {
+        std::vector<std::string> toolchainPaths = toolchain->executablePaths();
+        paths.insert(paths.end(), toolchainPaths.begin(), toolchainPaths.end());
     }
 
     std::vector<std::string> managerPaths = this->executablePaths();

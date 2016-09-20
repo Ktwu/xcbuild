@@ -52,21 +52,9 @@ settings(void) const
 }
 
 std::vector<std::string> Target::
-executablePaths(Toolchain::vector const &overrideToolchains) const
+executablePaths() const
 {
     std::vector<std::string> paths;
-
-    if (Platform::shared_ptr platform = _platform.lock()) {
-        std::vector<std::string> platformPaths = platform->executablePaths();
-        paths.insert(paths.end(), platformPaths.begin(), platformPaths.end());
-    }
-
-    Toolchain::vector const &toolchains = (!overrideToolchains.empty() ? overrideToolchains : _toolchains);
-    for (Toolchain::shared_ptr const &toolchain : toolchains) {
-        std::vector<std::string> toolchainPaths = toolchain->executablePaths();
-        paths.insert(paths.end(), toolchainPaths.begin(), toolchainPaths.end());
-    }
-
     return paths;
 }
 

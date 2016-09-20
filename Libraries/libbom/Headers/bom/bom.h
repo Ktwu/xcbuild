@@ -67,6 +67,9 @@ bom_index_iterate(struct bom_context *context, bom_index_iterator iterator, void
 void *
 bom_index_get(struct bom_context *context, uint32_t index, size_t *data_len);
 
+void
+bom_index_reserve(struct bom_context *context, size_t count);
+
 uint32_t
 bom_index_add(struct bom_context *context, const void *data, size_t data_len);
 
@@ -102,9 +105,6 @@ struct bom_tree_context *
 bom_tree_alloc_load(struct bom_context *context, const char *variable_name);
 
 void
-bom_tree_clear(struct bom_tree_context *tree);
-
-void
 bom_tree_free(struct bom_tree_context *tree);
 
 struct bom_context *
@@ -117,6 +117,9 @@ typedef void (*bom_tree_iterator)(struct bom_tree_context *tree, void *key, size
 
 void
 bom_tree_iterate(struct bom_tree_context *tree, bom_tree_iterator iterator, void *ctx);
+
+void
+bom_tree_reserve(struct bom_tree_context *tree, size_t count);
 
 void
 bom_tree_add(struct bom_tree_context *tree, const void *key, size_t key_len, const void *value, size_t value_len);

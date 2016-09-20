@@ -241,6 +241,24 @@ bom_index_get(struct bom_context *context, uint32_t index, size_t *data_len)
     return (void *)header + ioffset;
 }
 
+void
+bom_index_reserve(struct bom_context *context, size_t count)
+{
+    assert(context != NULL);
+    assert(context->iteration_count == 0 && "cannot mutate while iterating");
+    struct bom_header *header = (struct bom_header *)context->memory.data;
+
+    /* Insert space for extra indexes at the end of the currently allocated space. */
+    uint32_t index_point = ntohl(header->index_offset) + ntohl(header->index_length);
+    size_t new_index_length = ntohl(header->index_length) + sizeof(struct bom_index) * count;
+    ptrdiff_t index_delta = sizeof(struct bom_index) * count;
+    _bom_address_resize(context, index_point, index_delta);
+
+    /* Re-fetch, invalidated by resize. */
+    header = (struct bom_header *)context->memory.data;
+    header->index_length = htonl(new_index_length);
+}
+
 uint32_t
 bom_index_add(struct bom_context *context, const void *data, size_t data_len)
 {

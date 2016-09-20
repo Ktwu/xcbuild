@@ -8,6 +8,7 @@
  */
 
 #include <pbxbuild/Tool/Invocation.h>
+#include <libutil/Filesystem.h>
 #include <libutil/FSUtil.h>
 #include <libutil/SysUtil.h>
 
@@ -15,28 +16,48 @@ namespace Tool = pbxbuild::Tool;
 using AuxiliaryFile = pbxbuild::Tool::Invocation::AuxiliaryFile;
 using DependencyInfo = pbxbuild::Tool::Invocation::DependencyInfo;
 using Executable = pbxbuild::Tool::Invocation::Executable;
+using libutil::Filesystem;
 using libutil::FSUtil;
 using libutil::SysUtil;
 
+AuxiliaryFile::Chunk::
+Chunk(Type type, ext::optional<std::vector<uint8_t>> const &data, ext::optional<std::string> const &file) :
+    _type(type),
+    _data(data),
+    _file(file)
+{
+}
+
+AuxiliaryFile::Chunk AuxiliaryFile::Chunk::
+Data(std::vector<uint8_t> const &data)
+{
+    return Chunk(Type::Data, data, ext::nullopt);
+}
+
+AuxiliaryFile::Chunk AuxiliaryFile::Chunk::
+File(std::string const &file)
+{
+    return Chunk(Type::File, ext::nullopt, file);
+}
+
 AuxiliaryFile::
-AuxiliaryFile(std::string const &path, std::vector<uint8_t> const &contents, bool executable) :
+AuxiliaryFile(std::string const &path, std::vector<Chunk> const &chunks, bool executable) :
     _path      (path),
-    _contents  (contents),
+    _chunks    (chunks),
     _executable(executable)
 {
 }
 
-AuxiliaryFile::
-AuxiliaryFile(std::string const &path, std::string const &contents, bool executable) :
-    _path      (path),
-    _contents  (std::vector<uint8_t>(contents.begin(), contents.end())),
-    _executable(executable)
+AuxiliaryFile AuxiliaryFile::
+Data(std::string const &path, std::vector<uint8_t> const &data, bool executable)
 {
+    return AuxiliaryFile(path, { Chunk::Data(data) }, executable);
 }
 
-AuxiliaryFile::
-~AuxiliaryFile()
+AuxiliaryFile AuxiliaryFile::
+File(std::string const &path, std::string const &file, bool executable)
 {
+    return AuxiliaryFile(path, { Chunk::File(file) }, executable);
 }
 
 DependencyInfo::
@@ -77,7 +98,8 @@ Determine(std::string const &executable, std::vector<std::string> const &executa
 
         if (!FSUtil::IsAbsolutePath(executable)) {
             /* Not absolute, look in the search paths. */
-            path = FSUtil::FindExecutable(executable, executablePaths);
+            // TODO(grp): Handle when the executable is not found.
+            path = Filesystem::GetDefaultUNSAFE()->findExecutable(executable, executablePaths).value_or(std::string());
         }
 
         return Absolute(path);
@@ -93,7 +115,7 @@ Absolute(std::string const &path)
 Executable Executable::
 Builtin(std::string const &name)
 {
-    std::string executableRoot = FSUtil::GetDirectoryName(SysUtil::GetExecutablePath());
+    std::string executableRoot = FSUtil::GetDirectoryName(SysUtil::GetDefault()->executablePath());
     std::string path = executableRoot + "/" + name;
     return Executable(path, name);
 }

@@ -16,12 +16,14 @@
 #include <builtin/Registry.h>
 #include <libutil/Base.h>
 #include <libutil/Filesystem.h>
+#include <libutil/SysUtil.h>
 
 #include <unistd.h>
 
 using xcdriver::BuildAction;
 using xcdriver::Options;
 using libutil::Filesystem;
+using libutil::SysUtil;
 
 BuildAction::
 BuildAction()
@@ -73,6 +75,10 @@ VerifySupportedOptions(Options const &options)
         fprintf(stderr, "warning: toolchain option not implemented\n");
     }
 
+    if (options.quiet() || options.verbose() || options.json() || options.hideShellScriptEnvironment()) {
+        fprintf(stderr, "warning: output options not implemented\n");
+    }
+
     if (options.destination() || options.destinationTimeout()) {
         fprintf(stderr, "warning: destination option not implemented\n");
     }
@@ -81,11 +87,7 @@ VerifySupportedOptions(Options const &options)
         fprintf(stderr, "warning: job control option not implemented\n");
     }
 
-    if (options.hideShellScriptEnvironment()) {
-        fprintf(stderr, "warning: output control option not implemented\n");
-    }
-
-    if (options.enableAddressSanitizer() || options.enableCodeCoverage()) {
+    if (options.enableAddressSanitizer() || options.enableThreadSanitizer() || options.enableCodeCoverage()) {
         fprintf(stderr, "warning: build mode option not implemented\n");
     }
 
@@ -95,6 +97,16 @@ VerifySupportedOptions(Options const &options)
 
     if (options.resultBundlePath()) {
         fprintf(stderr, "warning: result bundle path not implemented\n");
+    }
+
+    if (options.xctestrun() || !options.onlyTesting().empty() || !options.skipTesting().empty()) {
+        fprintf(stderr, "warning: testing options not implemented\n");
+    }
+
+    for (std::string const &action : options.actions()) {
+        if (action != "build") {
+            fprintf(stderr, "warning: non-build action %s not implemented\n", action.c_str());
+        }
     }
 
     return true;
@@ -141,7 +153,7 @@ Run(Filesystem *filesystem, Options const &options)
     }
 
     /* The build settings passed in on the command line override all others. */
-    std::vector<pbxsetting::Level> overrideLevels = Action::CreateOverrideLevels(options, buildEnvironment->baseEnvironment());
+    std::vector<pbxsetting::Level> overrideLevels = Action::CreateOverrideLevels(filesystem, buildEnvironment->baseEnvironment(), options, SysUtil::GetDefault()->currentDirectory());
 
     /*
      * Create the build parameters. The executor uses this to load a workspace and create a

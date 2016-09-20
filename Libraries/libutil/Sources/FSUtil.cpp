@@ -9,65 +9,13 @@
 
 #include <libutil/FSUtil.h>
 
-#include <climits>
-#include <cstdlib>
-#include <cstdio>
 #include <cstring>
-#include <cerrno>
-#include <sstream>
-#include <unordered_map>
-#include <unordered_set>
 
+#include <strings.h>
 #include <unistd.h>
 #include <libgen.h>
-#include <dirent.h>
-#include <sys/stat.h>
 
 using libutil::FSUtil;
-
-bool FSUtil::
-TestForPresence(std::string const &path)
-{
-    return ::access(path.c_str(), F_OK) == 0;
-}
-
-bool FSUtil::
-TestForRead(std::string const &path)
-{
-    return ::access(path.c_str(), R_OK) == 0;
-}
-
-bool FSUtil::
-TestForWrite(std::string const &path)
-{
-    return ::access(path.c_str(), W_OK) == 0;
-}
-
-bool FSUtil::
-TestForExecute(std::string const &path)
-{
-    return ::access(path.c_str(), X_OK) == 0;
-}
-
-bool FSUtil::
-TestForDirectory(std::string const &path)
-{
-    struct stat st;
-    if (::stat(path.c_str(), &st) < 0)
-        return false;
-    else
-        return S_ISDIR(st.st_mode);
-}
-
-bool FSUtil::
-TestForSymlink(std::string const &path)
-{
-    struct stat st;
-    if (::lstat(path.c_str(), &st) < 0)
-        return false;
-    else
-        return S_ISLNK(st.st_mode);
-}
 
 std::string FSUtil::
 GetDirectoryName(std::string const &path)
@@ -160,12 +108,12 @@ GetFileExtension(std::string const &path)
 }
 
 bool FSUtil::
-IsFileExtension(std::string const &path, std::string const &extension,
-        bool insensitive)
+IsFileExtension(std::string const &path, std::string const &extension, bool insensitive)
 {
     std::string pathExtension = GetFileExtension(path);
-    if (pathExtension.empty())
+    if (pathExtension.empty()) {
         return extension.empty();
+    }
 
     if (insensitive) {
         return ::strcasecmp(pathExtension.c_str(), extension.c_str()) == 0;
@@ -175,13 +123,12 @@ IsFileExtension(std::string const &path, std::string const &extension,
 }
 
 bool FSUtil::
-IsFileExtension(std::string const &path,
-        std::initializer_list <std::string> const &extensions,
-        bool insensitive)
+IsFileExtension(std::string const &path, std::initializer_list<std::string> const &extensions, bool insensitive)
 {
     std::string pathExtension = GetFileExtension(path);
-    if (pathExtension.empty())
+    if (pathExtension.empty()) {
         return false;
+    }
 
     for (auto const &extension : extensions) {
         bool match = false;
@@ -217,120 +164,16 @@ ResolveRelativePath(std::string const &path, std::string const &workingDirectory
     }
 }
 
-std::string FSUtil::
-ResolvePath(std::string const &path)
-{
-    char realPath[PATH_MAX + 1];
-    if (::realpath(path.c_str(), realPath) == nullptr)
-        return std::string();
-    else
-        return realPath;
-}
-
-std::string FSUtil::
-GetCurrentDirectory()
-{
-    char path[PATH_MAX + 1];
-    if (::getcwd(path, sizeof(path)) == nullptr) {
-        path[0] = '\0';
-    }
-    return path;
-}
-
-bool FSUtil::
-EnumerateDirectory(std::string const &path, std::function <bool(std::string const &)> const &cb)
-{
-    DIR *dp = opendir(path.c_str());
-    if (dp == NULL) {
-        return false;
-    }
-
-    while (struct dirent *entry = readdir(dp)) {
-        std::string name = entry->d_name;
-        if (name != "." && name != "..") {
-            cb(name);
-        }
-    }
-
-    closedir(dp);
-    return true;
-}
-
-bool FSUtil::
-EnumerateRecursive(std::string const &path, std::function <bool(std::string const &)> const &cb)
-{
-    EnumerateDirectory(path, [&](std::string const &filename) -> bool {
-        std::string full = path + "/" + filename;
-        cb(full);
-        return true;
-    });
-
-    EnumerateDirectory(path, [&](std::string const &filename) -> bool {
-        std::string full = path + "/" + filename;
-        if (TestForDirectory(full) && !TestForSymlink(full)) {
-            EnumerateRecursive(full, cb);
-        }
-        return true;
-    });
-
-    return true;
-}
-
-std::vector<std::string> FSUtil::
-GetExecutablePaths()
-{
-    std::vector<std::string>        vpaths;
-    std::unordered_set<std::string> seen;
-    std::string                     path;
-    std::istringstream              is(::getenv("PATH"));
-
-    while (std::getline(is, path, ':')) {
-        if (seen.find(path) != seen.end()) {
-            continue;
-        }
-
-        vpaths.push_back(path);
-        seen.insert(path);
-    }
-
-    return vpaths;
-}
-
-std::string FSUtil::
-FindExecutable(std::string const &name, std::vector<std::string> const &paths)
-{
-    std::string exePath = FindFile(name, paths);
-
-    if (exePath.empty())
-        return std::string();
-
-    if (TestForExecute(exePath)) {
-        return NormalizePath(exePath);
-    }
-
-    return std::string();
-}
-
-std::string FSUtil::
-FindFile(std::string const &name, std::vector<std::string> const &paths)
-{
-    if (name.empty())
-        return std::string();
-
-    for (auto const &path : paths) {
-        std::string filePath = path + "/" + name;
-        if (TestForPresence(filePath)) {
-            return NormalizePath(filePath);
-        }
-    }
-
-    return std::string();
-}
-
 static size_t
-SimplePathNormalize(char const *in, char *out, size_t outSize, char separator,
-        char const *invalidCharSet, bool dontWantRoot, bool relative,
-        char replacementChar)
+SimplePathNormalize(
+    char const *in,
+    char *out,
+    size_t outSize,
+    char separator,
+    char const *invalidCharSet,
+    bool dontWantRoot,
+    bool relative,
+    char replacementChar)
 {
     char const *i = in;
     char *o = out;
@@ -396,12 +239,12 @@ NormalizePath(std::string const &path)
 {
     std::string outputPath;
 
-    if (path.empty())
+    if (path.empty()) {
         return std::string();
+    }
 
     outputPath.resize(path.size() * 2);
-    size_t size = ::POSIXPathNormalize(path.c_str(),
-            &outputPath[0], outputPath.size(), path[0] != '/');
+    size_t size = ::POSIXPathNormalize(path.c_str(), &outputPath[0], outputPath.size(), path[0] != '/');
     outputPath.resize(size);
 
     return outputPath;
