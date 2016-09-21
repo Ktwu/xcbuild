@@ -29,7 +29,7 @@ UserDeveloperRootLink()
     if (home_dir == NULL) {
         home_dir = getpwuid(getuid())->pw_dir;
     }
-    return std::string(home_dir) + "/.xcsdk/xcode_dir_path";
+    return std::string(home_dir) + "/.xcsdk/xcode_select_link";
 }
 
 static std::string
