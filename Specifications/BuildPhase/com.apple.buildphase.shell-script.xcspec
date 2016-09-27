@@ -8,12 +8,8 @@
  */
 
 {
-    Type = FileType;
-    Identifier = archive.metal;
-    BasedOn = archive;
+    Type = BuildPhase;
+    Identifier = com.apple.buildphase.shell-script;
 
-    UTI = "com.apple.metal-archive";
-    Extensions = (
-        "metal-ar",
-    );
+    Name = "Run Shell Script";
 }

@@ -8,8 +8,11 @@
  */
 
 {
-    Type = BuildPhase;
-    Identifier = com.apple.buildphase.shellscript;
+    Type = FileType;
+    Identifier = file.swiftpm-manifest;
+    BasedOn = sourcecode.swift;
 
-    Name = "Run Shell Script";
+    UTI = "com.apple.dt.swiftpm.manifest";
+    IsProjectWrapper = YES;
+    AppliesToBuildRules = NO;
 }
