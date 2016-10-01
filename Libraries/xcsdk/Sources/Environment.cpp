@@ -22,13 +22,9 @@ using libutil::Filesystem;
 using libutil::FSUtil;
 
 static std::string
-UserDeveloperRootLink()
+UserDeveloperRootLink(std::string const &userHomeDirectory)
 {
-    char *home_dir = getenv("HOME");
-    if (home_dir == NULL) {
-        home_dir = getpwuid(getuid())->pw_dir;
-    }
-    return std::string(home_dir) + "/.xcsdk/xcode_select_link";
+    return userHomeDirectory + "/.xcsdk/xcode_select_link";
 }
 
 static std::string
@@ -64,8 +60,10 @@ DeveloperRoot(process::Context const *processContext, Filesystem const *filesyst
         return ResolveDeveloperRoot(filesystem, *path);
     }
 
-    if (auto path = filesystem->readSymbolicLink(UserDeveloperRootLink())) {
-        return path;
+    if (ext::optional<std::string> userHomeDirectory = processContext->userHomeDirectory()) {
+        if (auto path = filesystem->readSymbolicLink(UserDeveloperRootLink(*userHomeDirectory))) {
+            return path;
+        }
     }
 
     if (auto path = filesystem->readSymbolicLink(PrimaryDeveloperRootLink())) {
