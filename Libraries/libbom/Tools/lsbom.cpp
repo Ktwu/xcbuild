@@ -13,44 +13,49 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <sstream>
+#include <iomanip>
 
 #include <arpa/inet.h>
 
 class Options {
-private:
-    ext::optional<bool> _help;
+public:
+    enum class PrintItem {
+        Checksum,
+        FileName,
+        FileNameQuoted,
+        GroupID,
+        GroupName,
+        Permissions,
+        PermissionsText,
+        FileSize,
+        FileSizeFormatted,
+        ModificationTime,
+        ModificationTimeFormatted,
+        UserID,
+        UserName,
+        UserGroupID,
+        UserGroupName,
+    };
 
 private:
-    ext::optional<bool> _includeBlockDevices;
-    ext::optional<bool> _includeCharacterDevices;
-    ext::optional<bool> _includeDirectories;
-    ext::optional<bool> _includeFiles;
-    ext::optional<bool> _includeSymbolicLinks;
+    ext::optional<bool>        _help;
 
 private:
-    ext::optional<bool> _printMTime;
-    ext::optional<bool> _onlyPath;
-    ext::optional<bool> _noModes;
+    ext::optional<bool>        _includeBlockDevices;
+    ext::optional<bool>        _includeCharacterDevices;
+    ext::optional<bool>        _includeDirectories;
+    ext::optional<bool>        _includeFiles;
+    ext::optional<bool>        _includeSymbolicLinks;
+
+private:
+    ext::optional<bool>        _printMTime;
+    ext::optional<bool>        _onlyPath;
+    ext::optional<bool>        _noModes;
+    ext::optional<std::vector<PrintItem>> _printFormat;
 
 private:
     ext::optional<std::string> _arch;
-
-private:
-    ext::optional<bool> _printChecksum;
-    ext::optional<bool> _printFileName;
-    ext::optional<bool> _printFileNameQuoted;
-    ext::optional<bool> _printGroupID;
-    ext::optional<bool> _printGroupName;
-    ext::optional<bool> _printPermissions;
-    ext::optional<bool> _printPermissionsText;
-    ext::optional<bool> _printFileSize;
-    ext::optional<bool> _printFileSizeFormatted;
-    ext::optional<bool> _printModificationTime;
-    ext::optional<bool> _printModificationTimeFormatted;
-    ext::optional<bool> _printUserID;
-    ext::optional<bool> _printUserName;
-    ext::optional<bool> _printUserGroupID;
-    ext::optional<bool> _printUserGroupName;
 
 private:
     ext::optional<std::string> _input;
@@ -82,42 +87,12 @@ public:
     { return _onlyPath.value_or(false); }
     bool noModes() const
     { return _noModes.value_or(false); }
+    ext::optional<std::vector<PrintItem>> const &printFormat() const
+    { return _printFormat; }
 
 public:
     ext::optional<std::string> const &arch() const
     { return _arch; }
-
-public:
-    bool printChecksum() const
-    { return _printChecksum.value_or(false); }
-    bool printFileName() const
-    { return _printFileName.value_or(false); }
-    bool printFileNameQuoted() const
-    { return _printFileNameQuoted.value_or(false); }
-    bool printGroupID() const
-    { return _printGroupID.value_or(false); }
-    bool printGroupName() const
-    { return _printGroupName.value_or(false); }
-    bool printPermissions() const
-    { return _printPermissions.value_or(false); }
-    bool printPermissionsText() const
-    { return _printPermissionsText.value_or(false); }
-    bool printFileSize() const
-    { return _printFileSize.value_or(false); }
-    bool printFileSizeFormatted() const
-    { return _printFileSizeFormatted.value_or(false); }
-    bool printModificationTime() const
-    { return _printModificationTime.value_or(false); }
-    bool printModificationTimeFormatted() const
-    { return _printModificationTimeFormatted.value_or(false); }
-    bool printUserID() const
-    { return _printUserID.value_or(false); }
-    bool printUserName() const
-    { return _printUserName.value_or(false); }
-    bool printUserGroupID() const
-    { return _printUserGroupID.value_or(false); }
-    bool printUserGroupName() const
-    { return _printUserGroupName.value_or(false); }
 
 public:
     ext::optional<std::string> const &input() const
@@ -172,23 +147,24 @@ parseArgument(std::vector<std::string> const &args, std::vector<std::string>::co
             return result;
         }
 
+        _printFormat = std::vector<PrintItem>();
         for (char c : *print) {
             switch (c) {
-                case 'c': _printChecksum = true; break;
-                case 'f': _printFileName = true; break;
-                case 'F': _printFileNameQuoted = true; break;
-                case 'g': _printGroupID = true; break;
-                case 'G': _printGroupName = true; break;
-                case 'm': _printPermissions = true; break;
-                case 'M': _printPermissionsText = true; break;
-                case 's': _printFileSize = true; break;
-                case 'S': _printFileSizeFormatted = true; break;
-                case 't': _printModificationTime = true; break;
-                case 'T': _printModificationTimeFormatted = true; break;
-                case 'u': _printUserID = true; break;
-                case 'U': _printUserName = true; break;
-                case '/': _printUserGroupID = true; break;
-                case '?': _printUserGroupName = true; break;
+                case 'c': _printFormat->push_back(PrintItem::Checksum); break;
+                case 'f': _printFormat->push_back(PrintItem::FileName); break;
+                case 'F': _printFormat->push_back(PrintItem::FileNameQuoted); break;
+                case 'g': _printFormat->push_back(PrintItem::GroupID); break;
+                case 'G': _printFormat->push_back(PrintItem::GroupName); break;
+                case 'm': _printFormat->push_back(PrintItem::Permissions); break;
+                case 'M': _printFormat->push_back(PrintItem::PermissionsText); break;
+                case 's': _printFormat->push_back(PrintItem::FileSize); break;
+                case 'S': _printFormat->push_back(PrintItem::FileSizeFormatted); break;
+                case 't': _printFormat->push_back(PrintItem::ModificationTime); break;
+                case 'T': _printFormat->push_back(PrintItem::ModificationTimeFormatted); break;
+                case 'u': _printFormat->push_back(PrintItem::UserID); break;
+                case 'U': _printFormat->push_back(PrintItem::UserName); break;
+                case '/': _printFormat->push_back(PrintItem::UserGroupID); break;
+                case '?': _printFormat->push_back(PrintItem::UserGroupName); break;
                 default:
                     return std::make_pair(false, "unknown print option " + std::string(1, c));
             }
@@ -455,7 +431,20 @@ main(int argc, char **argv)
             printf("%s\n", path.c_str());
         } else {
             // TODO: Respect options about what to print.
-            printf("%s\n", path.c_str());
+            std::stringstream stream;
+            stream << std::oct << ntohs(path_info_2_value->mode);
+            std::string mode = stream.str();
+            std::string UID = std::to_string(ntohl(path_info_2_value->user));
+            std::string GID = std::to_string(ntohl(path_info_2_value->group));
+            printf("%s\t%s\t%s/%s", path.c_str(), mode.c_str(), UID.c_str(), GID.c_str());
+            
+            if (path_info_2_value->type == bom_path_type_file) {
+                std::string size = std::to_string(ntohl(path_info_2_value->size));
+                std::string checksum = std::to_string(ntohl(path_info_2_value->checksum));
+                printf("\t%s\t%s", size.c_str(), checksum.c_str());
+            }
+            
+            printf("\n");
         }
     }, reinterpret_cast<void *>(&context));
 
