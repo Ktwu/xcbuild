@@ -360,40 +360,58 @@ registerDomains(Filesystem const *filesystem, std::vector<std::pair<std::string,
             .domain = domain.first,
         };
 
-        if (filesystem->isDirectory(domain.second)) {
-            filesystem->enumerateRecursive(domain.second, [&](std::string const &filename) -> bool {
-                /* Support both *.xcspec and *.pbfilespec as a few of the latter remain in use. */
-                if (FSUtil::GetFileExtension(filename) != "xcspec" && FSUtil::GetFileExtension(filename) != "pbfilespec") {
-                    return true;
-                }
+        std::string realPath = filesystem->resolvePath(domain.second);
+        if (realPath.empty()) {
+            continue;
+        }
 
-                /* For *.pbfilespec files, default to FileType specifications. */
-                bool file = FSUtil::GetFileExtension(filename) == "pbfilespec";
-                context.defaultType = (file ? "FileType" : std::string());
+        ext::optional<Filesystem::Type> type = filesystem->type(realPath);
+        if (!type) {
+            continue;
+        }
 
-                if (!filesystem->isDirectory(filename)) {
-#if 0
-                    fprintf(stderr, "importing specification '%s'\n", filename.c_str());
-#endif
+        switch (*type) {
+            case Filesystem::Type::Directory: {
+                filesystem->readDirectory(realPath, true, [&](std::string const &filename) -> bool {
+                    std::string path = realPath + "/" + filename;
 
-                    ext::optional<PBX::Specification::vector> fileSpecifications = Specification::Open(filesystem, &context, filename);
-                    if (fileSpecifications) {
-                        specifications.insert(specifications.end(), fileSpecifications->begin(), fileSpecifications->end());
-                    } else {
-                        fprintf(stderr, "warning: failed to import specification '%s'\n", filename.c_str());
+                    /* Support both *.xcspec and *.pbfilespec as a few of the latter remain in use. */
+                    if (FSUtil::GetFileExtension(path) != "xcspec" && FSUtil::GetFileExtension(path) != "pbfilespec") {
+                        return true;
                     }
-                }
-                return true;
-            });
-        } else if (filesystem->exists(domain.second)) {
+
+                    /* For *.pbfilespec files, default to FileType specifications. */
+                    bool file = FSUtil::GetFileExtension(path) == "pbfilespec";
+                    context.defaultType = (file ? "FileType" : std::string());
+
+                    if (filesystem->type(path) != Filesystem::Type::Directory) {
 #if 0
-            fprintf(stderr, "importing specification '%s'\n", domain.second.c_str());
+                        fprintf(stderr, "importing specification '%s'\n", path.c_str());
 #endif
-            ext::optional<PBX::Specification::vector> fileSpecifications = Specification::Open(filesystem, &context, domain.second);
-            if (fileSpecifications) {
-                specifications.insert(specifications.end(), fileSpecifications->begin(), fileSpecifications->end());
-            } else {
-                fprintf(stderr, "warning: failed to import specification '%s'\n", domain.second.c_str());
+
+                        ext::optional<PBX::Specification::vector> fileSpecifications = Specification::Open(filesystem, &context, path);
+                        if (fileSpecifications) {
+                            specifications.insert(specifications.end(), fileSpecifications->begin(), fileSpecifications->end());
+                        } else {
+                            fprintf(stderr, "warning: failed to import specification '%s'\n", path.c_str());
+                        }
+                    }
+                    return true;
+                });
+                break;
+            }
+            case Filesystem::Type::SymbolicLink:
+            case Filesystem::Type::File: {
+#if 0
+                fprintf(stderr, "importing specification '%s'\n", realPath.c_str());
+#endif
+                ext::optional<PBX::Specification::vector> fileSpecifications = Specification::Open(filesystem, &context, realPath);
+                if (fileSpecifications) {
+                    specifications.insert(specifications.end(), fileSpecifications->begin(), fileSpecifications->end());
+                } else {
+                    fprintf(stderr, "warning: failed to import specification '%s'\n", realPath.c_str());
+                }
+                break;
             }
         }
     }

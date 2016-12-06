@@ -32,7 +32,7 @@ void Tool::ToolResolver::
 resolve(
     Tool::Context *toolContext,
     pbxsetting::Environment const &environment,
-    std::vector<Phase::File> const &inputs,
+    std::vector<Tool::Input> const &inputs,
     std::string const &outputDirectory,
     std::string const &logMessage) const
 {
@@ -43,7 +43,7 @@ resolve(
 
     std::vector<Tool::Invocation::DependencyInfo> dependencyInfo;
     if (_tool->deeplyStatInputDirectories()) {
-        for (Phase::File const &input : inputs) {
+        for (Tool::Input const &input : inputs) {
             /* Create a dependency info file to track the input directory contents. */
             auto info = Tool::Invocation::DependencyInfo(dependency::DependencyInfoFormat::Directory, input.path());
             dependencyInfo.push_back(info);
@@ -66,7 +66,7 @@ void Tool::ToolResolver::
 resolve(
     Tool::Context *toolContext,
     pbxsetting::Environment const &environment,
-    std::vector<std::string> const &inputs,
+    std::vector<Tool::Input> const &inputs,
     std::vector<std::string> const &outputs,
     std::string const &logMessage) const
 {
@@ -87,17 +87,14 @@ resolve(
 }
 
 std::unique_ptr<Tool::ToolResolver> Tool::ToolResolver::
-Create(Phase::Environment const &phaseEnvironment, std::string const &identifier)
+Create(pbxspec::Manager::shared_ptr const &specManager, std::vector<std::string> const &specDomains, std::string const &identifier)
 {
-    Build::Environment const &buildEnvironment = phaseEnvironment.buildEnvironment();
-    Target::Environment const &targetEnvironment = phaseEnvironment.targetEnvironment();
-
     pbxspec::PBX::Tool::shared_ptr tool = nullptr;
-    if (pbxspec::PBX::Tool::shared_ptr tool_ = buildEnvironment.specManager()->tool(identifier, targetEnvironment.specDomains())) {
+    if (pbxspec::PBX::Tool::shared_ptr tool_ = specManager->tool(identifier, specDomains)) {
         tool = tool_;
-    } else if (pbxspec::PBX::Compiler::shared_ptr compiler = buildEnvironment.specManager()->compiler(identifier, targetEnvironment.specDomains())) {
+    } else if (pbxspec::PBX::Compiler::shared_ptr compiler = specManager->compiler(identifier, specDomains)) {
         tool = std::static_pointer_cast<pbxspec::PBX::Tool>(compiler);
-    } else if (pbxspec::PBX::Linker::shared_ptr linker = buildEnvironment.specManager()->linker(identifier, targetEnvironment.specDomains())) {
+    } else if (pbxspec::PBX::Linker::shared_ptr linker = specManager->linker(identifier, specDomains)) {
         tool = std::static_pointer_cast<pbxspec::PBX::Tool>(linker);
     } else {
         fprintf(stderr, "warning: could not find tool %s\n", identifier.c_str());

@@ -18,7 +18,6 @@
 #include <libutil/FSUtil.h>
 
 namespace Tool = pbxbuild::Tool;
-using AuxiliaryFile = pbxbuild::Tool::Invocation::AuxiliaryFile;
 using pbxbuild::HeaderMap;
 using pbxbuild::FileTypeResolver;
 using libutil::Filesystem;
@@ -108,7 +107,7 @@ resolve(
 
     std::vector<std::string> headermapSearchPaths = HeadermapSearchPaths(_specManager, compilerEnvironment, target, toolContext->searchPaths(), toolContext->workingDirectory());
     for (std::string const &path : headermapSearchPaths) {
-        Filesystem::GetDefaultUNSAFE()->enumerateDirectory(path, [&](std::string const &fileName) -> bool {
+        Filesystem::GetDefaultUNSAFE()->readDirectory(path, false, [&](std::string const &fileName) -> bool {
             // TODO(grp): Use FileTypeResolver when reliable.
             std::string extension = FSUtil::GetFileExtension(fileName);
             if (extension != "h" && extension != "hpp") {
@@ -198,17 +197,16 @@ resolve(
     std::string headermapFileForGeneratedFiles               = compilerEnvironment.resolve("CPP_HEADERMAP_FILE_FOR_GENERATED_FILES");
     std::string headermapFileForProjectFiles                 = compilerEnvironment.resolve("CPP_HEADERMAP_FILE_FOR_PROJECT_FILES");
 
-    std::vector<AuxiliaryFile> auxiliaryFiles = {
-        AuxiliaryFile::Data(headermapFile, targetName.write()),
-        AuxiliaryFile::Data(headermapFileForOwnTargetHeaders, ownTargetHeaders.write()),
-        AuxiliaryFile::Data(headermapFileForAllTargetHeaders, allTargetHeaders.write()),
-        AuxiliaryFile::Data(headermapFileForAllNonFrameworkTargetHeaders, allNonFrameworkTargetHeaders.write()),
-        AuxiliaryFile::Data(headermapFileForGeneratedFiles, generatedFiles.write()),
-        AuxiliaryFile::Data(headermapFileForProjectFiles, projectHeaders.write()),
+    std::vector<Tool::AuxiliaryFile> auxiliaryFiles = {
+        Tool::AuxiliaryFile::Data(headermapFile, targetName.write()),
+        Tool::AuxiliaryFile::Data(headermapFileForOwnTargetHeaders, ownTargetHeaders.write()),
+        Tool::AuxiliaryFile::Data(headermapFileForAllTargetHeaders, allTargetHeaders.write()),
+        Tool::AuxiliaryFile::Data(headermapFileForAllNonFrameworkTargetHeaders, allNonFrameworkTargetHeaders.write()),
+        Tool::AuxiliaryFile::Data(headermapFileForGeneratedFiles, generatedFiles.write()),
+        Tool::AuxiliaryFile::Data(headermapFileForProjectFiles, projectHeaders.write()),
     };
 
-    Tool::Invocation invocation;
-    invocation.auxiliaryFiles().insert(invocation.auxiliaryFiles().end(), auxiliaryFiles.begin(), auxiliaryFiles.end());
+    toolContext->auxiliaryFiles().insert(toolContext->auxiliaryFiles().end(), auxiliaryFiles.begin(), auxiliaryFiles.end());
 
     std::vector<std::string> systemHeadermapFiles;
     std::vector<std::string> userHeadermapFiles;
@@ -231,24 +229,19 @@ resolve(
         }
     }
 
-    toolContext->invocations().push_back(invocation);
-
     Tool::HeadermapInfo *headermapInfo = &toolContext->headermapInfo();
     headermapInfo->systemHeadermapFiles().insert(headermapInfo->systemHeadermapFiles().end(), systemHeadermapFiles.begin(), systemHeadermapFiles.end());
     headermapInfo->userHeadermapFiles().insert(headermapInfo->userHeadermapFiles().end(), userHeadermapFiles.begin(), userHeadermapFiles.end());
 }
 
 std::unique_ptr<Tool::HeadermapResolver> Tool::HeadermapResolver::
-Create(Phase::Environment const &phaseEnvironment, pbxspec::PBX::Compiler::shared_ptr const &compiler)
+Create(pbxspec::Manager::shared_ptr const &specManager, std::vector<std::string> const &specDomains, pbxspec::PBX::Compiler::shared_ptr const &compiler)
 {
-    Build::Environment const &buildEnvironment = phaseEnvironment.buildEnvironment();
-    Target::Environment const &targetEnvironment = phaseEnvironment.targetEnvironment();
-
-    pbxspec::PBX::Tool::shared_ptr headermapTool = buildEnvironment.specManager()->tool(Tool::HeadermapResolver::ToolIdentifier(), targetEnvironment.specDomains());
+    pbxspec::PBX::Tool::shared_ptr headermapTool = specManager->tool(Tool::HeadermapResolver::ToolIdentifier(), specDomains);
     if (headermapTool == nullptr) {
         fprintf(stderr, "warning: could not find headermap tool\n");
         return nullptr;
     }
 
-    return std::unique_ptr<Tool::HeadermapResolver>(new Tool::HeadermapResolver(headermapTool, compiler, buildEnvironment.specManager()));
+    return std::unique_ptr<Tool::HeadermapResolver>(new Tool::HeadermapResolver(headermapTool, compiler, specManager));
 }

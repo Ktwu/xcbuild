@@ -32,24 +32,24 @@ void Tool::LinkerResolver::
 resolve(
     Tool::Context *toolContext,
     pbxsetting::Environment const &environment,
-    std::vector<std::string> const &inputFiles,
-    std::vector<Phase::File> const &inputLibraries,
+    std::vector<Tool::Input> const &inputFiles,
+    std::vector<Tool::Input> const &inputLibraries,
     std::string const &output,
     std::vector<std::string> const &additionalArguments,
     std::string const &executable)
 {
     std::vector<std::string> special;
-    std::vector<Tool::Invocation::AuxiliaryFile> auxiliaries;
+    std::vector<Tool::AuxiliaryFile> auxiliaries;
 
     special.insert(special.end(), additionalArguments.begin(), additionalArguments.end());
 
     if (_linker->supportsInputFileList() || _linker->identifier() == Tool::LinkerResolver::LibtoolToolIdentifier()) {
         std::string path = environment.expand(pbxsetting::Value::Parse("$(LINK_FILE_LIST_$(variant)_$(arch))"));
         std::string contents;
-        for (std::string const &input : inputFiles) {
-            contents += input + "\n";
+        for (Tool::Input const &input : inputFiles) {
+            contents += input.path() + "\n";
         }
-        auto fileList = Tool::Invocation::AuxiliaryFile::Data(path, std::vector<uint8_t>(contents.begin(), contents.end()));
+        auto fileList = Tool::AuxiliaryFile::Data(path, std::vector<uint8_t>(contents.begin(), contents.end()));
         auxiliaries.push_back(fileList);
     }
 
@@ -59,8 +59,8 @@ resolve(
      */
     std::vector<std::string> libraryPaths;
     libraryPaths.reserve(inputLibraries.size());
-    for (Phase::File const &library : inputLibraries) {
-        if (!library.fileType()->isFrameworkWrapper()) {
+    for (Tool::Input const &library : inputLibraries) {
+        if (library.fileType() == nullptr || !library.fileType()->isFrameworkWrapper()) {
             libraryPaths.push_back(FSUtil::GetDirectoryName(library.path()));
         }
     }
@@ -77,9 +77,9 @@ resolve(
         special.push_back("-F" + environment.resolve("BUILT_PRODUCTS_DIR"));
     }
 
-    for (Phase::File const &library : inputLibraries) {
+    for (Tool::Input const &library : inputLibraries) {
         std::string base = FSUtil::GetBaseNameWithoutExtension(library.path());
-        if (library.fileType()->isFrameworkWrapper()) {
+        if (library.fileType() != nullptr && library.fileType()->isFrameworkWrapper()) {
             special.push_back("-framework");
             special.push_back(base);
         } else {
@@ -126,19 +126,17 @@ resolve(
     invocation.workingDirectory() = toolContext->workingDirectory();
     invocation.inputs() = toolEnvironment.inputs(toolContext->workingDirectory());
     invocation.outputs() = toolEnvironment.outputs(toolContext->workingDirectory());
-    invocation.auxiliaryFiles() = auxiliaries;
     invocation.dependencyInfo() = dependencyInfo;
     invocation.logMessage() = tokens.logMessage();
     toolContext->invocations().push_back(invocation);
+
+    toolContext->auxiliaryFiles().insert(toolContext->auxiliaryFiles().end(), auxiliaries.begin(), auxiliaries.end());
 }
 
 std::unique_ptr<Tool::LinkerResolver> Tool::LinkerResolver::
-Create(Phase::Environment const &phaseEnvironment, std::string const &identifier)
+Create(pbxspec::Manager::shared_ptr const &specManager, std::vector<std::string> const &specDomains, std::string const &identifier)
 {
-    Build::Environment const &buildEnvironment = phaseEnvironment.buildEnvironment();
-    Target::Environment const &targetEnvironment = phaseEnvironment.targetEnvironment();
-
-    pbxspec::PBX::Linker::shared_ptr linker = buildEnvironment.specManager()->linker(identifier, targetEnvironment.specDomains());
+    pbxspec::PBX::Linker::shared_ptr linker = specManager->linker(identifier, specDomains);
     if (linker == nullptr) {
         fprintf(stderr, "warning: could not find linker %s\n", identifier.c_str());
         return nullptr;

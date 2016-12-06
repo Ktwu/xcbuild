@@ -102,13 +102,14 @@ bool Phase::SourcesResolver::
 resolve(Phase::Environment const &phaseEnvironment, Phase::Context *phaseContext)
 {
     Target::Environment const &targetEnvironment = phaseEnvironment.targetEnvironment();
+    Build::Environment const &buildEnvironment = phaseEnvironment.buildEnvironment();
 
     Tool::ClangResolver const *clangResolver = phaseContext->clangResolver(phaseEnvironment);
     if (clangResolver == nullptr) {
         return false;
     }
 
-    std::unique_ptr<Tool::HeadermapResolver> headermapResolver = Tool::HeadermapResolver::Create(phaseEnvironment, clangResolver->compiler());
+    std::unique_ptr<Tool::HeadermapResolver> headermapResolver = Tool::HeadermapResolver::Create(buildEnvironment.specManager(), targetEnvironment.specDomains(), clangResolver->compiler());
     if (headermapResolver == nullptr) {
         return false;
     }
@@ -124,14 +125,14 @@ resolve(Phase::Environment const &phaseEnvironment, Phase::Context *phaseContext
         fprintf(stderr, "error: unable to resolve module map\n");
     }
 
-    std::vector<Phase::File> files = Phase::File::ResolveBuildFiles(Filesystem::GetDefaultUNSAFE(), phaseEnvironment, targetEnvironment.environment(), _buildPhase->files());
+    std::vector<Tool::Input> files = Phase::File::ResolveBuildFiles(Filesystem::GetDefaultUNSAFE(), phaseEnvironment, targetEnvironment.environment(), _buildPhase->files());
 
     /*
      * Split files based on whether their tool is architecture-neutral.
      */
-    std::vector<Phase::File> neutralFiles;
-    std::vector<Phase::File> architectureFiles;
-    for (Phase::File const &file : files) {
+    std::vector<Tool::Input> neutralFiles;
+    std::vector<Tool::Input> architectureFiles;
+    for (Tool::Input const &file : files) {
         if (file.buildRule() != nullptr && file.buildRule()->tool() != nullptr && file.buildRule()->tool()->isArchitectureNeutral() == false) {
             architectureFiles.push_back(file);
         } else {
@@ -142,7 +143,7 @@ resolve(Phase::Environment const &phaseEnvironment, Phase::Context *phaseContext
     /*
      * Resolve non-architecture-specific files. These are resolved just once.
      */
-    std::vector<std::vector<Phase::File>> neutralGroups = Phase::Context::Group(neutralFiles);
+    std::vector<std::vector<Tool::Input>> neutralGroups = Phase::Context::Group(neutralFiles);
     std::string neutralOutputDirectory = targetEnvironment.environment().resolve("OBJECT_FILE_DIR");
     if (!phaseContext->resolveBuildFiles(phaseEnvironment, targetEnvironment.environment(), _buildPhase, neutralGroups, neutralOutputDirectory)) {
         return false;
@@ -151,7 +152,7 @@ resolve(Phase::Environment const &phaseEnvironment, Phase::Context *phaseContext
     /*
      * Resolve architecture-specific files.
      */
-    std::vector<std::vector<Phase::File>> architectureGroups = Phase::Context::Group(architectureFiles);
+    std::vector<std::vector<Tool::Input>> architectureGroups = Phase::Context::Group(architectureFiles);
     for (std::string const &variant : targetEnvironment.variants()) {
         for (std::string const &arch : targetEnvironment.architectures()) {
             pbxsetting::Environment currentEnvironment = pbxsetting::Environment(targetEnvironment.environment());

@@ -41,12 +41,12 @@ Open(Filesystem const *filesystem, ext::optional<std::string> const &userName, s
         return nullptr;
     }
 
-    if (!filesystem->isDirectory(basePath) || !filesystem->isDirectory(path)) {
+    std::string realPath = filesystem->resolvePath(path);
+    if (realPath.empty()) {
         return nullptr;
     }
 
-    std::string realPath = filesystem->resolvePath(path);
-    if (realPath.empty()) {
+    if (filesystem->type(basePath) != Filesystem::Type::Directory || filesystem->type(realPath) != Filesystem::Type::Directory) {
         return nullptr;
     }
 
@@ -58,7 +58,7 @@ Open(Filesystem const *filesystem, ext::optional<std::string> const &userName, s
     std::string schemePath;
 
     schemePath = path + "/xcshareddata/xcschemes";
-    filesystem->enumerateDirectory(schemePath, [&](std::string const &filename) -> void {
+    filesystem->readDirectory(schemePath, false, [&](std::string const &filename) -> void {
         if (FSUtil::GetFileExtension(filename) != "xcscheme") {
             return;
         }
@@ -78,7 +78,7 @@ Open(Filesystem const *filesystem, ext::optional<std::string> const &userName, s
 
     if (userName) {
         schemePath = path + "/xcuserdata/" + *userName + ".xcuserdatad/xcschemes";
-        filesystem->enumerateDirectory(schemePath, [&](std::string const &filename) -> void {
+        filesystem->readDirectory(schemePath, false, [&](std::string const &filename) -> void {
             if (FSUtil::GetFileExtension(filename) != "xcscheme") {
                 return;
             }

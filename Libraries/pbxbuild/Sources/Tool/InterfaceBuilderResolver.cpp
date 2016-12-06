@@ -30,17 +30,17 @@ void Tool::InterfaceBuilderResolver::
 resolve(
     Tool::Context *toolContext,
     pbxsetting::Environment const &baseEnvironment,
-    std::vector<Phase::File> const &inputs) const
+    std::vector<Tool::Input> const &inputs) const
 {
     /*
      * Filter arguments as either a real input or a localization-specific strings file.
      */
-    std::vector<Phase::File> primaryInputs;
+    std::vector<Tool::Input> primaryInputs;
     std::vector<std::string> localizationStringsFiles;
-    for (Phase::File const &input : inputs) {
-        if (input.fileType()->identifier() == "text.plist.strings") {
+    for (Tool::Input const &input : inputs) {
+        if (input.fileType() != nullptr && input.fileType()->identifier() == "text.plist.strings") {
             /* The format here is as expected by ibtool. */
-            localizationStringsFiles.push_back(input.localization() + ":" + input.path());
+            localizationStringsFiles.push_back(input.localization().value_or("") + ":" + input.path());
         } else {
             primaryInputs.push_back(input);
         }
@@ -109,12 +109,9 @@ resolve(
 }
 
 std::unique_ptr<Tool::InterfaceBuilderResolver> Tool::InterfaceBuilderResolver::
-Create(Phase::Environment const &phaseEnvironment, std::string const &toolIdentifier)
+Create(pbxspec::Manager::shared_ptr const &specManager, std::vector<std::string> const &specDomains, std::string const &toolIdentifier)
 {
-    Build::Environment const &buildEnvironment = phaseEnvironment.buildEnvironment();
-    Target::Environment const &targetEnvironment = phaseEnvironment.targetEnvironment();
-
-    pbxspec::PBX::Compiler::shared_ptr interfaceBuilderTool = buildEnvironment.specManager()->compiler(toolIdentifier, targetEnvironment.specDomains());
+    pbxspec::PBX::Compiler::shared_ptr interfaceBuilderTool = specManager->compiler(toolIdentifier, specDomains);
     if (interfaceBuilderTool == nullptr) {
         fprintf(stderr, "warning: could not find interface builder tool\n");
         return nullptr;

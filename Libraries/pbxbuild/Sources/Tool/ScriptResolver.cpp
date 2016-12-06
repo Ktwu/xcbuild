@@ -9,6 +9,7 @@
 
 #include <pbxbuild/Tool/ScriptResolver.h>
 #include <pbxbuild/Tool/Context.h>
+#include <pbxsetting/Environment.h>
 #include <pbxsetting/Level.h>
 #include <pbxsetting/Setting.h>
 #include <pbxsetting/Type.h>
@@ -108,7 +109,7 @@ resolve(
 
     std::string scriptFilePath = phaseEnvironment.expand(scriptPath);
     std::string contents = (!buildPhase->shellPath().empty() ? "#!" + buildPhase->shellPath() + "\n" : "") + buildPhase->shellScript();
-    auto scriptFile = Tool::Invocation::AuxiliaryFile::Data(scriptFilePath, std::vector<uint8_t>(contents.begin(), contents.end()), true);
+    auto scriptFile = Tool::AuxiliaryFile::Data(scriptFilePath, std::vector<uint8_t>(contents.begin(), contents.end()), true);
 
     pbxsetting::Environment scriptEnvironment = pbxsetting::Environment(environment);
     scriptEnvironment.insertFront(ScriptInputOutputLevel(inputFiles, outputFiles, true), false);
@@ -121,17 +122,18 @@ resolve(
     invocation.workingDirectory() = toolContext->workingDirectory();
     invocation.phonyInputs() = inputFiles; /* User-specified, may not exist. */
     invocation.outputs() = outputFiles;
-    invocation.auxiliaryFiles() = { scriptFile };
     invocation.logMessage() = phaseEnvironment.expand(logMessage);
     invocation.showEnvironmentInLog() = buildPhase->showEnvVarsInLog();
     toolContext->invocations().push_back(invocation);
+
+    toolContext->auxiliaryFiles().push_back(scriptFile);
 }
 
 void Tool::ScriptResolver::
 resolve(
     Tool::Context *toolContext,
     pbxsetting::Environment const &environment,
-    Phase::File const &input) const
+    Tool::Input const &input) const
 {
     Target::BuildRules::BuildRule::shared_ptr const &buildRule = input.buildRule();
     if (buildRule == nullptr || buildRule->script().empty()) {
@@ -154,7 +156,7 @@ resolve(
         pbxsetting::Setting::Parse("INPUT_FILE_NAME", "$(INPUT_FILE_PATH:file)"),
         pbxsetting::Setting::Parse("INPUT_FILE_BASE", "$(INPUT_FILE_PATH:base)"),
         pbxsetting::Setting::Parse("INPUT_FILE_SUFFIX", "$(INPUT_FILE_PATH:suffix)"),
-        pbxsetting::Setting::Create("INPUT_FILE_REGION_PATH_COMPONENT", input.localization()), // TODO(grp): Verify format of this.
+        pbxsetting::Setting::Create("INPUT_FILE_REGION_PATH_COMPONENT", input.localization().value_or("")), // TODO(grp): Verify format of this.
     });
 
     pbxsetting::Environment ruleEnvironment = pbxsetting::Environment(environment);
@@ -189,12 +191,9 @@ resolve(
 }
 
 std::unique_ptr<Tool::ScriptResolver> Tool::ScriptResolver::
-Create(Phase::Environment const &phaseEnvironment)
+Create(pbxspec::Manager::shared_ptr const &specManager, std::vector<std::string> const &specDomains)
 {
-    Build::Environment const &buildEnvironment = phaseEnvironment.buildEnvironment();
-    Target::Environment const &targetEnvironment = phaseEnvironment.targetEnvironment();
-
-    pbxspec::PBX::Tool::shared_ptr scriptTool = buildEnvironment.specManager()->tool(ScriptResolver::ToolIdentifier(), targetEnvironment.specDomains());
+    pbxspec::PBX::Tool::shared_ptr scriptTool = specManager->tool(ScriptResolver::ToolIdentifier(), specDomains);
     if (scriptTool == nullptr) {
         fprintf(stderr, "warning: could not find shell script tool\n");
         return nullptr;

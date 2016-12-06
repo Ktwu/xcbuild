@@ -28,7 +28,7 @@ void Tool::InterfaceBuilderStoryboardLinkerResolver::
 resolve(
     Tool::Context *toolContext,
     pbxsetting::Environment const &baseEnvironment,
-    std::vector<std::string> const &inputs) const
+    std::vector<Tool::Input> const &inputs) const
 {
     /*
      * Create the custom environment with the tool options.
@@ -54,9 +54,9 @@ resolve(
     std::string tempDirectory = environment.resolve("TempResourcesDir");
     std::string resourcesDirectory = environment.resolve("ProductResourcesDir");
     std::vector<std::string> outputs;
-    for (std::string const &input : inputs) {
+    for (Tool::Input const &input : inputs) {
         /* This assumes the inputs all come from TempResourcesDir, which should be true. */
-        std::string relative = FSUtil::GetRelativePath(input, tempDirectory);
+        std::string relative = FSUtil::GetRelativePath(input.path(), tempDirectory);
         std::string output = resourcesDirectory + "/" + relative;
         outputs.push_back(output);
     }
@@ -91,12 +91,9 @@ resolve(
 }
 
 std::unique_ptr<Tool::InterfaceBuilderStoryboardLinkerResolver> Tool::InterfaceBuilderStoryboardLinkerResolver::
-Create(Phase::Environment const &phaseEnvironment)
+Create(pbxspec::Manager::shared_ptr const &specManager, std::vector<std::string> const &specDomains)
 {
-    Build::Environment const &buildEnvironment = phaseEnvironment.buildEnvironment();
-    Target::Environment const &targetEnvironment = phaseEnvironment.targetEnvironment();
-
-    pbxspec::PBX::Compiler::shared_ptr interfaceBuilderTool = buildEnvironment.specManager()->compiler(Tool::InterfaceBuilderStoryboardLinkerResolver::ToolIdentifier(), targetEnvironment.specDomains());
+    pbxspec::PBX::Compiler::shared_ptr interfaceBuilderTool = specManager->compiler(Tool::InterfaceBuilderStoryboardLinkerResolver::ToolIdentifier(), specDomains);
     if (interfaceBuilderTool == nullptr) {
         fprintf(stderr, "warning: could not find interface builder storyboard linker tool\n");
         return nullptr;
