@@ -109,6 +109,20 @@ ExpandTool(
     std::string toolExecutable = environment.expand(tool->execPath().value_or(pbxsetting::Value::Empty()));
     std::string const &resolvedExecutable = (!executable.empty() ? executable : toolExecutable);
 
+#if defined(__OSMETA__)
+    /*
+     * Upstream xcbuild input file argument parsing is broken when more than two input files
+     * are given for AssetCatalogCompiler. This is workaround while the issue gets fixed.
+     * TODO(onhachoe): use proper command line expansion once it gets fixed upstream.
+     */
+    std::vector<std::string> expandedCommandLine = Expand(
+        environment.expand(pbxsetting::Value::Parse(resolvedCommandLine)),
+        resolvedExecutable,
+        arguments,
+        specialArguments,
+        inputs,
+        outputs);
+#else
     /*
      * Expand the command line, then expand the settings within it. Can't expand the command
      * line's settings first or, if the values contain spaces, they would be split incorrectly.
@@ -117,6 +131,7 @@ ExpandTool(
     for (auto &it : expandedCommandLine) {
         it = environment.expand(pbxsetting::Value::Parse(it));
     }
+#endif
 
     /*
      * Extract the executable / arguments.
