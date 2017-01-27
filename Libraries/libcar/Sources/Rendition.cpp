@@ -94,6 +94,10 @@ dump() const
     printf("Layout: %d\n", _layout);
     printf("Opaque: %d\n", _isOpaque);
     printf("Resizable: %d\n", _isResizable);
+#if defined(__OSMETA__)
+    printf("Vector: %d\n", _isVector);
+    printf("Format: %d\n", _data->format());
+#endif
     if (_isResizable) {
         for (size_t i = 0; i < _slices.size(); i++) {
             Slice const &slice = _slices[i];

@@ -163,6 +163,18 @@ CompileAsset(
         }
 
         format = car::Rendition::Data::Format::JPEG;
+#if defined(__OSMETA__)
+    } else if (FSUtil::IsFileExtension(filename, "pdf", true)) {
+        std::vector<uint8_t> contents;
+        if (!filesystem->read(&contents, filename)) {
+            result->normal(
+                Result::Severity::Error,
+                "unable to read PDF file",
+                filename);
+            return false;
+        }
+        /* TODO get the correct attributes */
+#endif
     } else {
         result->normal(
             Result::Severity::Error,
