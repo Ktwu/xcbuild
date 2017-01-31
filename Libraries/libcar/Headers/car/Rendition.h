@@ -115,7 +115,7 @@ private:
     std::string                     _fileName;
     int                             _width;
     int                             _height;
-    float                           _scale;
+    double                          _scale;
     bool                            _isVector;
     bool                            _isOpaque;
     bool                            _isResizable;
@@ -172,9 +172,9 @@ public:
     /*
      * The scale of the rendition.
      */
-    float scale() const
+    double scale() const
     { return _scale; }
-    float &scale()
+    double &scale()
     { return _scale; }
 
 public:
