@@ -11,6 +11,7 @@ add_library(graphics SHARED
             Sources/Image.cpp
             Sources/PixelFormat.cpp
             Sources/Format/PNG.cpp
+            Sources/Format/PDF.cpp
             )
 target_link_libraries(graphics PUBLIC ext)
 target_include_directories(graphics PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Headers")

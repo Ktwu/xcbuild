@@ -13,6 +13,7 @@
 #include <acdriver/Result.h>
 #include <graphics/PixelFormat.h>
 #include <graphics/Format/PNG.h>
+#include <graphics/Format/PDF.h>
 #include <xcassets/Asset/ImageSet.h>
 #include <xcassets/Slot/Idiom.h>
 #include <xcassets/TemplateRenderingIntent.h>
@@ -173,7 +174,14 @@ CompileAsset(
                 filename);
             return false;
         }
-        /* TODO get the correct attributes */
+        auto pdfSize = graphics::Format::PDF::Read(contents);
+        width = pdfSize.first;
+        height = pdfSize.second;
+        scale = 1.0;
+        /* TODO check the contents to make sure data is in right format */
+        // In the case of raw pdf data format, 'pixels' simply contains the data
+        // instead of the bitmap.
+        pixels = std::move(contents);
 #endif
     } else {
         result->normal(
