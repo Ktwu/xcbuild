@@ -29,7 +29,11 @@ resolve(
     std::string logMessage = "MkDir " + directory;
 
     Tool::Invocation invocation;
+#if defined(__OSMETA__)
+    invocation.executable() = Tool::Invocation::Executable::External("mkdir");
+#else
     invocation.executable() = Tool::Invocation::Executable::External("/bin/mkdir");
+#endif
     invocation.arguments() = { "-p", directory };
     invocation.workingDirectory() = toolContext->workingDirectory();
     invocation.outputs() = { FSUtil::ResolveRelativePath(directory, toolContext->workingDirectory()) };

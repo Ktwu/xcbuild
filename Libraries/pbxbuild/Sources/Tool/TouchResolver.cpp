@@ -42,7 +42,11 @@ resolve(
     }
 
     Tool::Invocation invocation;
+#if defined(__OSMETA__)
+    invocation.executable() = Tool::Invocation::Executable::External("touch");
+#else
     invocation.executable() = Tool::Invocation::Executable::External("/usr/bin/touch");
+#endif
     invocation.arguments() = { "-c", input };
     invocation.workingDirectory() = toolContext->workingDirectory();
     invocation.outputs() = { output };

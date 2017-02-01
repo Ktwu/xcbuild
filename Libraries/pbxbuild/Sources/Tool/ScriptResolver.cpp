@@ -116,7 +116,11 @@ resolve(
     std::unordered_map<std::string, std::string> environmentVariables = scriptEnvironment.computeValues(pbxsetting::Condition::Empty());
 
     Tool::Invocation invocation;
+#if defined(__OSMETA__)
+    invocation.executable() = Tool::Invocation::Executable::External("sh");
+#else
     invocation.executable() = Tool::Invocation::Executable::External("/bin/sh");
+#endif
     invocation.arguments() = { "-c", Escape::Shell(scriptFilePath) };
     invocation.environment() = environmentVariables;
     invocation.workingDirectory() = toolContext->workingDirectory();
@@ -179,7 +183,11 @@ resolve(
     std::unordered_map<std::string, std::string> environmentVariables = ruleEnvironment.computeValues(pbxsetting::Condition::Empty());
 
     Tool::Invocation invocation;
+#if defined(__OSMETA__)
+    invocation.executable() = Tool::Invocation::Executable::External("sh");
+#else
     invocation.executable() = Tool::Invocation::Executable::External("/bin/sh");
+#endif
     invocation.arguments() = { "-c", buildRule->script() };
     invocation.environment() = environmentVariables;
     invocation.workingDirectory() = toolContext->workingDirectory();

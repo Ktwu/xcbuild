@@ -29,7 +29,11 @@ resolve(
     std::string logMessage = "Ditto " + targetPath + " " + sourcePath;
 
     Tool::Invocation invocation;
+#if defined(__OSMETA__)
+    invocation.executable() = Tool::Invocation::Executable::External("ditto"); // TODO(grp): Ditto is not portable.
+#else
     invocation.executable() = Tool::Invocation::Executable::External("/usr/bin/ditto"); // TODO(grp): Ditto is not portable.
+#endif
     invocation.arguments() = { "-rsrc", sourcePath, targetPath };
     invocation.workingDirectory() = toolContext->workingDirectory();
     invocation.inputs() = { FSUtil::ResolveRelativePath(sourcePath, toolContext->workingDirectory()) };

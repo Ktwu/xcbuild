@@ -31,7 +31,11 @@ resolve(
     std::string logMessage = "SymLink " + targetPath + " " + symlinkPath;
 
     Tool::Invocation invocation;
+#if defined(__OSMETA__)
+    invocation.executable() = Tool::Invocation::Executable::External("ln");
+#else
     invocation.executable() = Tool::Invocation::Executable::External("/bin/ln");
+#endif
     invocation.arguments() = { "-sfh", targetPath, symlinkPath };
     invocation.workingDirectory() = workingDirectory;
     invocation.phonyInputs() = { FSUtil::ResolveRelativePath(targetPath, workingDirectory) };
