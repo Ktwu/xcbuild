@@ -41,9 +41,10 @@ Read(std::vector<uint8_t> const &contents)
 
 #else
 
-long int PDF::Read(std::vector<uint8_t> const &contents)
+std::pair<long int, long int> PDF::Read(std::vector<uint8_t> const &contents)
 {
     // NYI
+    return std::make_pair(0, 0);
 }
 
 #endif
