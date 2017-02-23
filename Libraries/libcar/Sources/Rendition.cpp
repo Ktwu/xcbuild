@@ -96,7 +96,7 @@ dump() const
     printf("Resizable: %d\n", _isResizable);
 #if defined(__OSMETA__)
     printf("Vector: %d\n", _isVector);
-    printf("Format: %d\n", _data->format());
+    printf("Format: %d\n", static_cast<std::underlying_type<Data::Format>::type>(_data->format()));
 #endif
     if (_isResizable) {
         for (size_t i = 0; i < _slices.size(); i++) {
