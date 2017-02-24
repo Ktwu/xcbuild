@@ -30,11 +30,19 @@ resolve(
 
     Tool::Invocation invocation;
 #if defined(__OSMETA__)
+#if defined(OSMETA_PLATFORM_DARWIN)
     invocation.executable() = Tool::Invocation::Executable::External("ditto"); // TODO(grp): Ditto is not portable.
+#else
+    invocation.executable() = Tool::Invocation::Executable::External("cp"); // TODO(grp): Ditto is not portable.
+#endif
 #else
     invocation.executable() = Tool::Invocation::Executable::External("/usr/bin/ditto"); // TODO(grp): Ditto is not portable.
 #endif
+#if defined(__OSMETA__) && !defined(OSMETA_PLATFORM_DARWIN)
+    invocation.arguments() = { sourcePath, targetPath };
+#else
     invocation.arguments() = { "-rsrc", sourcePath, targetPath };
+#endif
     invocation.workingDirectory() = toolContext->workingDirectory();
     invocation.inputs() = { FSUtil::ResolveRelativePath(sourcePath, toolContext->workingDirectory()) };
     invocation.outputs() = { FSUtil::ResolveRelativePath(targetPath, toolContext->workingDirectory()) };
