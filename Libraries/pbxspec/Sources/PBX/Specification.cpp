@@ -38,6 +38,18 @@ Specification()
 }
 
 bool Specification::
+operator==(Specification const &rhs) const
+{
+    return _identifier.compare(rhs._identifier) == 0 && _domain.compare(rhs._domain) == 0;
+}
+
+bool Specification::
+operator!=(Specification const &rhs) const
+{
+    return !(*this == rhs);
+}
+
+bool Specification::
 inherit(Specification::shared_ptr const &base)
 {
     if (base == nullptr || base.get() == this)
