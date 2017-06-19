@@ -7,19 +7,25 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 #
 
-add_library(bom SHARED
+add_library(bom
             Sources/bom.c
             Sources/bom_memory.c
             Sources/bom_tree.c
             )
 
-target_link_libraries(bom PUBLIC)
+target_link_libraries(bom PUBLIC util)
+if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+  target_link_libraries(bom PRIVATE wsock32 ws2_32)
+endif ()
 target_include_directories(bom PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Headers")
 install(TARGETS bom DESTINATION usr/lib)
 
 add_executable(lsbom Tools/lsbom.cpp)
 target_link_libraries(lsbom PRIVATE util bom)
+if ("${CMAKE_SYSTEM_NAME}" STREQUAL "Windows")
+  target_link_libraries(lsbom PRIVATE wsock32 ws2_32)
+endif ()
 install(TARGETS lsbom DESTINATION usr/bin)
 
 add_executable(dump_bom Tools/dump_bom.c)
-target_link_libraries(dump_bom PRIVATE bom)
+target_link_libraries(dump_bom PRIVATE bom util)

@@ -15,7 +15,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include <string.h>
+#include <ctime>
+#include <cstring>
 
 using car::Writer;
 using car::Facet;
