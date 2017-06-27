@@ -7,10 +7,6 @@
  of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include <pwd.h>
-#include <sys/types.h>
-#include <unistd.h>
-
 #include <xcsdk/Environment.h>
 #include <libutil/Base.h>
 #include <libutil/Filesystem.h>
