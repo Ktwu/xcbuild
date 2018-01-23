@@ -235,10 +235,48 @@ bom_tree_add(struct bom_tree_context *tree_context, const void *key, size_t key_
         paths = (struct bom_tree_entry *)bom_index_get(tree_context->context, paths_index, &paths_length);
     }
 
-    size_t entry_index = ntohs(paths->count);
+    size_t last_index = ntohs(paths->count);
+    size_t entry_index = 0;
+    size_t start_range = 0;
+    size_t end_range = last_index;
 
-    /* Set the indexes for the inserted entry. */
+    /* BOM trees store their keys sorted. Figure out the index for the new entry
+       using binary search. start_range and end_range are inclusive possibilities. */
+    while (start_range < end_range) {
+        size_t delta = end_range - start_range;
+        entry_index = delta / 2 + start_range;
+        struct bom_tree_entry_indexes *other_index = &paths->indexes[entry_index];
+
+        size_t other_len;
+        void *other_key = bom_index_get(tree_context->context, ntohl(other_index->key_index), &other_len);
+
+        /* Check the ordering for the candidate key and the existing key value. If the values are
+           seemingly identical, order shorter keys first. */
+        int result = other_key == NULL ? -1 : memcmp(key, other_key, other_len < key_len ? other_len : key_len);
+        if (result == 0 && key_len != other_len) {
+            result = key_len < other_len ? -1 : 1;
+        }
+
+        if (result < 0) {
+            /* If comparing c in [a,b,c,d,e], then choose [a,b,c] as the
+               potential part of the tree the new key may live in. The candidate index
+               is always less than the end range candidate, so the range always shrinks. */
+            end_range = entry_index;
+        } else if (result > 0) {
+            /* If comparing c in [a,b,c,d,e], then choose [d,e] as the
+               potential part of the tree the new key may live in. The new key's index
+               must be greater than c's index. */
+            start_range = entry_index + 1;
+        } else {
+            break;
+        }
+    }
+
+    /* Set the indexes for the inserted entry after shifting all other data */
     struct bom_tree_entry_indexes *indexes = &paths->indexes[entry_index];
+    if (entry_index < last_index) {
+        memmove(&paths->indexes[entry_index+1], indexes, (last_index - entry_index) * sizeof(struct bom_tree_entry_indexes));
+    }
     indexes->key_index = htonl(key_index);
     indexes->value_index = htonl(value_index);
 
@@ -246,4 +284,3 @@ bom_tree_add(struct bom_tree_context *tree_context, const void *key, size_t key_
     tree->path_count = htonl(ntohl(tree->path_count) + 1);
     paths->count = htons(ntohs(paths->count) + 1);
 }
-

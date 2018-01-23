@@ -122,7 +122,6 @@ LIBUTIL_PACKED_STRUCT_BEGIN struct bom_tree_entry {
   struct bom_tree_entry_indexes indexes[0];
 } LIBUTIL_PACKED_STRUCT_END;
 
-
 #if _MSC_VER
 __pragma(warning(pop))
 #endif
