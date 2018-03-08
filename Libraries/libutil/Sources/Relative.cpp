@@ -30,8 +30,8 @@ BaseRelative(std::string const &raw) :
 {
 }
 
-static std::string
-NormalizePath(
+static std::vector<std::string>
+NormalizePathComponents(
     std::string const &path,
     std::string::const_iterator start,
     std::string::const_iterator end,
@@ -40,56 +40,90 @@ NormalizePath(
     char separator,
     bool(*isSeparator)(char c))
 {
-    std::string output;
+  std::vector<std::string> output;
+  std::string component;
 
-    for (auto it = start; it != end; ++it) {
-        if (isSeparator(*it)) {
-            /* Skip runs of multiple separators. */
-            while (std::next(it) != end && isSeparator(*std::next(it))) {
-                ++it;
-            }
-
-            /* Only after the beginning, end, or after an existing trailing separator. */
-            if (!output.empty() && std::next(it) != end && !isSeparator(output.back())) {
-                output += separator;
-            }
-        } else if (collapse && (it == start || isSeparator(*std::prev(it))) && *it == '.') {
-            /* Handle relative paths. */
-            if (std::next(it) == end || isSeparator(*std::next(it))) {
-                /* Path component is current. */
-                if (!output.empty() && isSeparator(output.back())) {
+  for (auto it = start; it != end; ++it) {
+      if (isSeparator(*it)) {
+          /* Skip runs of multiple separators. */
+          if (!component.empty()) {
+              output.push_back(component);
+              component.clear();
+          }
+          while (std::next(it) != end && isSeparator(*std::next(it))) {
+              ++it;
+          }
+      } else if (collapse && (it == start || isSeparator(*std::prev(it))) && *it == '.') {
+          /* Handle relative paths. */
+          if (std::next(it) == end || isSeparator(*std::next(it))) {
+              /* Path component is current. */
+          } else if (*std::next(it) == '.' && (std::next(it, 2) == end || isSeparator(*std::next(it, 2)))) {
+              /* Path component is parent. */
+              if (output.empty()) {
+                  if (!absolute) {
+                      /* Initial parent. Copy to output if relative. */
+                      output.push_back("..");
+                  }
+              } else {
+                  /* Parent, remove segment. */
+                  if (!output.empty()) {
                     output.pop_back();
-                }
-            } else if (*std::next(it) == '.' && (std::next(it, 2) == end || isSeparator(*std::next(it, 2)))) {
-                /* Path component is parent. */
-                if (output.empty()) {
-                    if (!absolute) {
-                        /* Initial parent. Copy to output if relative. */
-                        output += '.';
-                        output += '.';
-                    }
-                } else {
-                    /* Parent, remove segment. */
-                    auto separator = std::find_if(std::next(output.rbegin()), output.rend(), isSeparator);
-                    if (separator != output.rend()) {
-                        separator = std::next(separator);
-                    }
-                    output.erase(separator.base(), output.rbegin().base());
-                }
+                  }
+              }
 
-                /* Skip second dot. */
-                ++it;
-            } else {
-                /* Path component starting with dot, copy. */
-                output += '.';
-            }
-        } else {
-            /* Path entry character, just copy. */
-            output += *it;
-        }
+              /* Skip second dot. */
+              ++it;
+          } else {
+              /* Path component starting with dot, copy. */
+              component += '.';
+          }
+      } else {
+          /* Path entry character, just copy. */
+          component += *it;
+      }
+  }
+
+  if (!component.empty()) {
+      output.push_back(component);
+      component.clear();
+  }
+  return output;
+}
+
+template<class Traits>
+std::vector<std::string> Path::BaseRelative<Traits>::
+normalizedComponents() const
+{
+    std::string prefix;
+    std::vector<std::string> output;
+
+    size_t start;
+    bool absolute = Traits::IsAbsolute(_raw, &start);
+
+    for (std::string::size_type n = 0; n < start; ++n) {
+        prefix += (Traits::IsSeparator(_raw[n]) ? Traits::Separator : _raw[n]);
     }
 
-    return output;
+    if (!prefix.empty()) {
+        output.push_back(prefix);
+    }
+
+    std::vector<std::string> relativeOutput = NormalizePathComponents(
+        _raw,
+        _raw.begin() + start,
+        _raw.end(),
+        absolute,
+        true,
+        Traits::Separator,
+        &Traits::IsSeparator
+    );
+
+    if (absolute) {
+      output.insert(output.end(), relativeOutput.begin(), relativeOutput.end());
+      return output;
+    } else {
+      return relativeOutput;
+    }
 }
 
 template<class Traits>
@@ -106,7 +140,24 @@ normalized() const
         output += (Traits::IsSeparator(_raw[n]) ? Traits::Separator : _raw[n]);
     }
 
-    output += NormalizePath(_raw, _raw.begin() + start, _raw.end(), absolute, true, Traits::Separator, &Traits::IsSeparator);
+    std::vector<std::string> relativeOutput = NormalizePathComponents(
+        _raw,
+        _raw.begin() + start,
+        _raw.end(),
+        absolute,
+        true,
+        Traits::Separator,
+        &Traits::IsSeparator
+    );
+
+    auto begin = relativeOutput.begin();
+    auto end = relativeOutput.end();
+    for (auto it = begin; it != end; ++it) {
+        output += *it;
+        if (std::next(it) != end) {
+          output += Traits::Separator;
+        }
+    }
 
     return output;
 }

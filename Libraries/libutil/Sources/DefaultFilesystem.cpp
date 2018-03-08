@@ -9,6 +9,7 @@
 
 #include <libutil/DefaultFilesystem.h>
 #include <libutil/FSUtil.h>
+#include <libutil/Relative.h>
 
 #include <stack>
 #include <climits>
@@ -28,6 +29,8 @@
 #include <copyfile.h>
 #endif
 #endif
+
+#include <iostream>
 
 using libutil::DefaultFilesystem;
 using libutil::Filesystem;
@@ -730,23 +733,53 @@ readSymbolicLink(std::string const &path, bool *directory) const
     WideString target = WideString(&pathBuffer[offset], &pathBuffer[offset + length]);
     return WideStringToString(target);
 #else
-    for (size_t size = PATH_MAX; true; size *= 2) {
+    /* readlink() is not the equivalent of "readlink -f", which recursively
+       expands the path. Therefore, try running it on each component of an
+       expanded path. */
+    std::vector<std::string> components = FSUtil::NormalizePathComponents(path);
+    std::string resolvedPath;
+    std::string pathToResolve;
+    auto it = components.begin();
+
+    for (size_t size = PATH_MAX; it != components.end(); size *= 2) {
         std::string current = std::string();
         current.resize(size);
 
-        ssize_t len = ::readlink(path.c_str(), &current[0], current.size());
-        if (static_cast<size_t>(len) == current.size()) {
-            /* May need more space. */
-        } else if (len != -1) {
-            /* Success. */
-            if (directory) {
-                *directory = (this->type(this->resolvePath(path)) == Type::Directory);
+        while (it != components.end()) {
+            pathToResolve = libutil::Path::Relative(resolvedPath).child(*it).raw();
+
+            ssize_t len = ::readlink(pathToResolve.c_str(), &current[0], current.size());
+            if (static_cast<size_t>(len) == current.size()) {
+                /* May need more space. */
+                break;
+            } else if (len == -1) {
+                if (errno == EINVAL) {
+                    /* Sort-of-success: The path isn't a symlink */
+                    resolvedPath = pathToResolve;
+                } else {
+                    /* Failure. */
+                    return ext::nullopt;
+                }
+            } else {
+                /* Resolved a symlink. Symlinks may possibly be recursive --
+                   meaning that a symlink can point to another one. Resolve it. */
+                ext::optional<std::string> completelyResolvedPath = this->readSymbolicLink(current, nullptr);
+                if (!completelyResolvedPath) {
+                    return ext::nullopt;
+                } else {
+                    resolvedPath = *completelyResolvedPath;
+                }
             }
-            return std::string(current.c_str());
-        } else {
-            return ext::nullopt;
+
+            /* Success */
+            ++it;
         }
     }
+
+    if (directory) {
+        *directory = (this->type(this->resolvePath(resolvedPath)) == Type::Directory);
+    }
+    return std::string(resolvedPath.c_str());
 #endif
 }
 
