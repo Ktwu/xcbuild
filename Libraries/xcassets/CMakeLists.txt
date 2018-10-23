@@ -64,12 +64,15 @@ add_library(xcassets
             Sources/Asset/TextureSet.cpp
             )
 
-target_link_libraries(xcassets PUBLIC util plist ext)
+target_link_libraries(xcassets PUBLIC util plist ext car)
 target_include_directories(xcassets PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Headers")
 install(TARGETS xcassets DESTINATION usr/lib)
 
 add_executable(dump_xcassets Tools/dump_xcassets.cpp)
 target_link_libraries(dump_xcassets PRIVATE xcassets)
+
+add_executable(assetutil Tools/assetutil.cpp)
+target_link_libraries(assetutil PRIVATE car graphics process xcassets)
 
 if (BUILD_TESTING)
   ADD_UNIT_GTEST(xcassets FullyQualifiedName Tests/test_FullyQualifiedName.cpp)

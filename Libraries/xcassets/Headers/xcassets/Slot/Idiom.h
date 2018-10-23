@@ -13,6 +13,8 @@
 #include <ext/optional>
 #include <string>
 
+#include <car/car_format.h>
+
 namespace xcassets {
 namespace Slot {
 
@@ -42,9 +44,19 @@ public:
     static ext::optional<Idiom> Parse(std::string const &value);
 
     /*
+     * Conversion between the CAR enum and the xcasset enum.
+     */
+    static Idiom Parse(car_attribute_identifier_idiom_value value);
+
+    /*
      * Convert an idiom to a string.
      */
     static std::string String(Idiom idiom);
+
+    /*
+     * Convenience for converting a car enum into a string.
+     */
+    static std::string String(car_attribute_identifier_idiom_value idiom);
 };
 
 }
